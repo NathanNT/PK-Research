@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 330" role="img" aria-labelledby="title desc">
+<title id="title">Network decryption pipeline</title>
+<desc id="desc">TLS to CommLib Pike, LZHL, Stream0 and CommMsg.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 10 5 0 10" fill="none" stroke="#8D928F" stroke-width="1.4"/></marker></defs>
+<rect width="1280" height="330" fill="#0B0C0D"/>
+<text x="64" y="76" font-family="Arial,sans-serif" font-size="30" fill="#EFECE6">Network decryption pipeline</text>
+<rect x="64" y="142" width="200" height="130" rx="6" fill="#0E2219" stroke="#2BD07F" stroke-width="2"/>
+<text x="164" y="190" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" fill="#EFECE6">TLS</text>
+<text x="164" y="228" text-anchor="middle" font-family="Arial,sans-serif" font-size="17" fill="#C5C2BB">Transport decryption</text>
+<path d="M264 207H294" fill="none" stroke="#8D928F" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="296" y="142" width="200" height="130" rx="6" fill="#0E2219" stroke="#2BD07F" stroke-width="2"/>
+<text x="396" y="190" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" fill="#EFECE6">CommLib / Pike</text>
+<text x="396" y="228" text-anchor="middle" font-family="Arial,sans-serif" font-size="17" fill="#C5C2BB">Session decryption</text>
+<path d="M496 207H526" fill="none" stroke="#8D928F" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="528" y="142" width="200" height="130" rx="6" fill="#0E2219" stroke="#2BD07F" stroke-width="2"/>
+<text x="628" y="190" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" fill="#EFECE6">LZHL</text>
+<text x="628" y="228" text-anchor="middle" font-family="Arial,sans-serif" font-size="17" fill="#C5C2BB">Decompression</text>
+<path d="M728 207H758" fill="none" stroke="#8D928F" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="760" y="142" width="200" height="130" rx="6" fill="#0E2219" stroke="#2BD07F" stroke-width="2"/>
+<text x="860" y="190" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" fill="#EFECE6">Stream0</text>
+<text x="860" y="228" text-anchor="middle" font-family="Arial,sans-serif" font-size="17" fill="#C5C2BB">Message reassembly</text>
+<path d="M960 207H990" fill="none" stroke="#8D928F" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="992" y="142" width="200" height="130" rx="6" fill="#0E2219" stroke="#2BD07F" stroke-width="2"/>
+<text x="1092" y="190" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" fill="#EFECE6">CommMsg</text>
+<text x="1092" y="228" text-anchor="middle" font-family="Arial,sans-serif" font-size="17" fill="#C5C2BB">Protocol decoding</text>
+</svg>
