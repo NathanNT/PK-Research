@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1050" role="img" aria-labelledby="title desc">
+<title id="title">PK Research - network decryption pipeline</title>
+<desc id="desc">Five stages: TLS decryption, CommLib Pike decryption, LZHL decompression, Stream0 reassembly, and CommMsg channel decoding. Read left to right on the top row, then right to left on the second row. Attribution, the 36 model inputs, and database integration are a separate work in progress.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10" fill="none" stroke="#8D928F" stroke-width="1.4"/></marker></defs>
+<rect width="1280" height="1050" fill="#0B0C0D"/>
+<g font-family="Arial,sans-serif">
+<text x="64" y="80" font-size="30" fill="#EFECE6">Network decryption pipeline</text>
+<text x="64" y="118" font-size="20" fill="#C5C2BB">Official client traffic - reproducible offline decoding</text>
+<text x="64" y="164" font-size="17" fill="#8D928F">INPUT - PCAPNG + private, session-scoped TLS / Pike secrets</text>
+<g fill="#0E2219" stroke="#2BD07F" stroke-width="2">
+<rect x="64" y="202" width="304" height="204" rx="6"/>
+<rect x="488" y="202" width="304" height="204" rx="6"/>
+<rect x="912" y="202" width="304" height="204" rx="6"/>
+<rect x="704" y="548" width="304" height="204" rx="6"/>
+<rect x="256" y="548" width="304" height="204" rx="6"/>
+</g>
+<g font-size="17" fill="#2BD07F">
+<text x="88" y="237">01 - TRANSPORT</text><text x="512" y="237">02 - COMMLIB</text><text x="936" y="237">03 - COMPRESSION</text><text x="728" y="583">04 - FRAMING</text><text x="280" y="583">05 - PROTOCOL</text>
+</g>
+<g font-size="26" fill="#EFECE6">
+<text x="88" y="279">TLS</text><text x="512" y="279">Pike</text><text x="936" y="279">LZHL</text><text x="728" y="625">Stream0</text><text x="280" y="625">CommMsg</text>
+</g>
+<g font-size="20" fill="#C5C2BB">
+<text x="88" y="322"><tspan x="88">TCP stream reassembly</tspan><tspan x="88" dy="29">Session-key decryption</tspan><tspan x="88" dy="29">Wireshark / TShark</tspan></text>
+<text x="512" y="322"><tspan x="512">Session-seeded cipher</tspan><tspan x="512" dy="29">Handshake checks</tspan><tspan x="512" dy="29">Preserve cipher state</tspan></text>
+<text x="936" y="322"><tspan x="936">Stateful decompression</tspan><tspan x="936" dy="29">Exact block consumption</tspan><tspan x="936" dy="29">Ordered decoded bytes</tspan></text>
+<text x="728" y="668"><tspan x="728">Fragment reassembly</tspan><tspan x="728" dy="29">Lengths and boundaries</tspan><tspan x="728" dy="29">Complete messages</tspan></text>
+<text x="280" y="668"><tspan x="280">Message types / channels</tspan><tspan x="280" dy="29">Application envelopes</tspan><tspan x="280" dy="29">Per-channel guard checks</tspan></text>
+</g>
+<g fill="none" stroke="#8D928F" stroke-width="2" marker-end="url(#arrow)">
+<path d="M368 304H488"/><path d="M792 304H912"/><path d="M1064 406V477H856V548"/><path d="M704 650H560"/>
+</g>
+<g font-size="17" fill="#C5C2BB" text-anchor="middle">
+<text x="428" y="280">Decrypt</text><text x="852" y="280">Expand</text><text x="974" y="459">Reassemble</text><text x="632" y="626">Decode</text>
+</g>
+<path d="M408 752V830" fill="none" stroke="#66706A" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arrow)"/>
+<rect x="64" y="840" width="1152" height="108" rx="6" fill="#141618" stroke="#66706A" stroke-width="2" stroke-dasharray="6 6"/>
+<text x="88" y="877" font-size="21" fill="#EFECE6">NEXT - Data integration</text>
+<text x="88" y="912" font-size="20" fill="#C5C2BB">Subscriptions → attributed state → 36 model inputs → SQLite</text>
+<text x="64" y="995" font-size="18" fill="#8D928F">Validated on a recorded session of build 83.3.2.0; data integration remains in progress.</text>
+</g></svg>

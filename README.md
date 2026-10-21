@@ -33,30 +33,34 @@ The images below show the existing application interface running against an isol
 
 *Demonstration of collection monitoring and explicit missing-field visibility. The displayed percentages illustrate field completeness using synthetic records.*
 
-## How far can we go?
+## Research objectives and experimental method
 
-This project starts with curiosity: how far can we go by combining reverse engineering, artificial intelligence, and game theory?
+PK Research uses poker as a test environment for **sequential decision-making under imperfect information**. The technical objective is to turn protocol messages into reproducible observations: a player's action, the information available immediately before it, and the sequence of events that produced that state.
 
-Reverse engineering lets us understand how a complex client represents and processes a game. AI gives us a way to explore patterns in player behavior and build predictive models. Game theory provides a framework for studying decisions, uncertainty, and strategic interaction.
+The work connects three layers:
 
-The ambition is to connect these disciplines and see what becomes possible, from reconstructing game states and learning from observed decisions to experimenting with new models and poker learning tools. Each discovery opens another question to investigate.
+- **Protocol and state reconstruction.** Recover message boundaries and typed payloads, maintain logical channels and subscription images/deltas, and attach each observation to its table, hand, player and session generation. Unknown values, incomplete hands and capture gaps remain explicit.
+- **Behavioral inference.** Estimate action probabilities conditioned on the observed decision context: position, stack depth, betting history, opponents and board. Observed actions are behavioral labels, not proof of optimal play. The next dataset/model, **Needle-0**, targets a fixed inventory of **36 required inputs**; their end-to-end network-to-database validation is still in progress.
+- **Game-theoretic experimentation.** Compare candidate decisions using card equity, assumed opponent strategies and expected chip value. Evaluate predictive models on held-out observations, study sensitivity to model assumptions, and separate prediction quality from decision quality. Tournament payout utility and equilibrium solving require their own models; a behavioral predictor is not a GTO solver.
 
-It is an independent experimental project, driven by learning, building, and testing ideas. Its direction evolves through the discoveries and experiments made along the way.
+The implemented modeling work includes population/player behavioral statistics and an experimental hierarchical logistic-regression model. Native simulation and decision-analysis components provide a separate calculation path. LLM explanations are another consumer of the available context; they are not a substitute for a correctly reconstructed state.
+
+Experiments are based on versioned decoders, source references and deterministic replay. Decision inputs are restricted to information available **before** the action; later cards and outcomes belong to retrospective evaluation. This makes it possible to investigate model calibration, opponent adaptation and strategic uncertainty without treating observed winnings as evidence of an optimal policy. The project is intended for research, offline analysis and learning tools; it does not automate betting actions.
 
 ## Project ecosystem
 
 | Project | Purpose | Status |
 |---|---|---|
-| **PK HUD** | Application and HUD with an observation probe, protocol parser, player metrics, database, logistic-regression behavioral prediction, decision analysis, and LLM advice and explanations. | **Done** |
-| **PK Client** | Independent client reimplementation in C++, covering communication, logical connections, authentication, subscriptions, and state synchronization. | **Work in progress**, with demonstrated functionality. |
+| **PK HUD** | Application and HUD with an observation probe, protocol parser, player metrics, database, logistic-regression behavioral prediction, decision analysis, and LLM advice and explanations. | **Implemented**; source migration and data-quality validation continue. |
+| **PK Client** | Independent headless protocol implementation covering transport, logical connections, authentication, subscriptions, and state synchronization. | **Functional POC validated** for the qualified profile; API and web control are a separate workstream. |
 | **Reversel Protocol** | Protocol research and documentation, with **150+ protocol-related functions identified**. The project uses the subset relevant to game-state reconstruction and behavioral analysis. | **Partial**, sufficient for current needs. |
 | **Needle-0** | Research dataset and associated decision model, built from structured game observations and decision contexts. | **Coming soon**, with strong decision performance as an objective. |
 
-PK HUD is the implemented application. PK Client provides the independent C++ client path. Reversel Protocol supplies the technical understanding used by both, while Needle-0 names both the upcoming dataset and its associated decision model. The function count refers to identified code functions.
+PK HUD is the implemented application. PK Client provides the independent headless client path. Reversel Protocol supplies the technical understanding used by both, while Needle-0 names both the upcoming dataset and its associated decision model. The function count refers to identified code functions.
 
 ## Communication and data pipeline
 
-The research follows data through transport, parsing, attribution, storage, and analysis:
+The original investigation follows the native client from transport and local IPC through in-process readers, dispatch and attributed application state:
 
 <p align="left">
   <img src="assets/communication-pipeline.svg" width="720" alt="Communication and data pipeline">
@@ -64,12 +68,28 @@ The research follows data through transport, parsing, attribution, storage, and 
 
 Some internal messages are constructed locally. Others carry subscription images or incremental updates. Their identifiers and paths are documented within their respective namespaces.
 
+### Network decryption pipeline
+
+The newer collection path starts with the official client's network traffic. A PCAPNG capture is reassembled by connection, decrypted with that session's TLS secrets, then decoded through **CommLib Pike → LZHL → Stream0 → CommMsg**. The five stages below separate transport security, the observed CommLib cipher, stateful compression, message framing and logical/application decoding.
+
+<p align="left">
+  <img src="assets/network-decryption.svg" width="720" alt="Five-stage network pipeline: TLS decryption, CommLib Pike decryption, LZHL decompression, Stream0 message reassembly, and CommMsg channel decoding">
+</p>
+
+TLS decryption alone does not expose the final application messages in the recorded session: Pike and LZHL must also be decoded in order. Channel guards are then handled according to the negotiated mode. The qualified sample uses `NULL` guards on the application channels decoded so far; that result does not establish decryption of every possible DH/AES-protected channel.
+
+A **30-second recorded session on Windows build 83.3.2.0** produced **2,786,863 bytes of TLS application data**, then **18,385,177 bytes of decompressed Stream0 data containing 127 complete messages**. Two independent offline replays produced identical output. TLS decoding without the session secrets yielded no application bytes, and absent/altered Pike seeds failed the protocol checks. These are results from one finite corpus, not throughput benchmarks or a claim of complete protocol coverage.
+
+This approach moves message collection out of downstream game-state objects. Targeted native instrumentation is still used to export the official client's session secrets; the network path is not memory-free. Export-point signatures and compatibility checks are being developed to make build changes easier to requalify. Secret material and raw captures remain private.
+
+**Current integration boundary:** decrypting messages and replaying subscription trees does not by itself certify game data. The next step is to reuse the existing parsers and database connector to validate each of Needle-0's 36 inputs through extraction, table/hand/player attribution, persistence and SQL readback. That integration is in progress.
+
 ## Findings and implemented components
 
 The private research has established and documented:
 
 - The active local transport and IPC path for analyzed client builds.
-- Reconstruction of fragmented TLS records and identification of an inbound plaintext boundary before application-level parsing.
+- Reconstruction of fragmented TLS records, export of the official client's TLS/Pike session secrets, and reproducible network decoding through Pike, LZHL and Stream0 on a qualified capture.
 - Parts of the message-processing pipeline, including native readers, virtual tables, type information, dispatchers, and subscription callbacks.
 - Selected table and tournament structures covering identities, seats, hand state, actions, cards, amounts, and configuration.
 - The distinction between initial subscription images, later updates, and state invalidation across generations.
@@ -99,7 +119,8 @@ The analysis uses public game observations and the local player's own context. R
 The work combines:
 
 - **Static analysis:** historical IDA work and current REA/Ghidra analysis.
-- **Runtime investigation:** Frida instrumentation, Windows API and IPC analysis.
+- **Runtime investigation:** targeted Frida instrumentation for session-secret export, Windows API/IPC analysis, and guarded native entry-point research.
+- **Network analysis:** PCAPNG capture, Wireshark/TShark TLS decoding, and deterministic CommLib Pike/LZHL/Stream0 replay.
 - **Data engineering:** Python decoders, SQLite persistence, deterministic offline replay.
 - **Automation and validation:** PowerShell tooling, finite fixtures, source manifests, and regression tests.
 
