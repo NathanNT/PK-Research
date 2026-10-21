@@ -1,54 +1,85 @@
-# PokerStars Protocol Reversal
+<p align="center">
+  <img src="assets/research-banner.png" width="800" alt="PK Research: protocol research">
+</p>
+
 
 **Independent reverse-engineering research into the PokerStars desktop client, its communication pipeline, and the reconstruction of structured poker observations.**
 
+Analyzed Windows builds: **83.0.8.4** and **83.3.2.0**. Protocol findings are tied to the build on which they were established.
+
 The project studies how data travels through a native desktop application: from transport and local inter-process communication to plaintext parsing, message dispatch, application state, and persistent storage.
 
-Its longer-term purpose is experimental: build a reliable foundation for studying player behavior, game theory, predictive models, and poker learning tools. Automated gameplay is not the project's objective.
+Its purpose is experimental: connect reverse engineering, artificial intelligence, and game theory through player-behavior analysis, predictive models, decision research, and poker learning tools.
 
-> This repository is the public overview of an ongoing private research project. It does not distribute the client, instrumentation, raw captures, or a runnable collection system.
+> This repository presents PK Research, its applications, technical architecture, and findings from ongoing work on the PokerStars desktop client.
 
-## Why this project?
+## Interface preview
 
-Understanding a protocol is more than finding message identifiers. To turn a stream into useful research data, each observation needs a meaning, a unit, an owner, and a place in the sequence of events.
+The images below show the existing application interface running against an isolated demonstration server. **All displayed players, hands, recommendations, counts, and amounts are synthetic.** They illustrate table observation, decision analysis, collection monitoring, and data-quality inspection.
 
-For example, an amount observed after an action is not necessarily the stack available before that action. A message that names a player does not automatically identify the table or hand. A reconstructed amount to call does not prove that raising is permitted.
+### Attributed table observations
 
-The central question is therefore:
+<p align="left">
+  <img src="assets/table-observation.png" width="640" alt="Table observation interface with fictitious players, a sample board, and synthetic decision context">
+</p>
 
-**Can a recorded source be transformed into a correctly attributed, reproducible observation of a player's decision, without inventing missing information or using future events?**
+*Demonstration of table state, player context, and the decision-analysis interface. All figures and outputs are fabricated fixtures.*
 
-## Three connected workstreams
+### Collection and data quality
 
-| Workstream | Purpose | Expected output |
-|---|---|---|
-| **ReverseProtocol** | Identify message families, subscription structures, readers, routing, fields, and their consumers. | Versioned protocol contracts with evidence and explicit uncertainty. |
-| **Connecteur DB** | Decode and attribute observations, preserve their provenance, and expose reliable records to downstream consumers. | Replayable events and decision contexts stored in SQLite. |
-| **MiniClient** | Study and implement an independent client path, including framing, logical connections, authentication, subscriptions, and state synchronization. | A progressively validated client implementation; each connection stage is qualified separately. |
+<p align="left">
+  <img src="assets/database-provenance.png" width="640" alt="Database interface with synthetic row counts, storage figures, and field completeness indicators">
+</p>
 
-These workstreams share findings, but their success criteria differ. A documented reader is not a working subscription, and a successful database replay is not proof of continuous operation against a live service.
+*Demonstration of collection monitoring and explicit missing-field visibility. The displayed percentages illustrate field completeness using synthetic records.*
+
+## How far can we go?
+
+This project starts with curiosity: how far can we go by combining reverse engineering, artificial intelligence, and game theory?
+
+Reverse engineering lets us understand how a complex client represents and processes a game. AI gives us a way to explore patterns in player behavior and build predictive models. Game theory provides a framework for studying decisions, uncertainty, and strategic interaction.
+
+The ambition is to connect these disciplines and see what becomes possible, from reconstructing game states and learning from observed decisions to experimenting with new models and poker learning tools. Each discovery opens another question to investigate.
+
+It is an independent experimental project, driven by learning, building, and testing ideas. Its direction evolves through the discoveries and experiments made along the way.
+
+## Project ecosystem
+
+### PK HUD
+
+**Done**
+
+The application and HUD, including the observation probe, protocol parser, player metrics, database, logistic-regression behavioral prediction, decision analysis, and LLM advice and explanations.
+
+### PK Client
+
+**Work in progress, demonstrated functionality**
+
+An independent client reimplementation in C++, covering communication, logical connections, authentication, subscriptions, and state synchronization. Integration continues.
+
+### Reversel Protocol
+
+**Partial, sufficient for current needs**
+
+Protocol research and documentation, with **150+ protocol-related functions identified**. The project uses the subset relevant to game-state reconstruction and behavioral analysis.
+
+### Needle-0
+
+**Coming soon**
+
+The research dataset and its associated decision model, built from structured game observations and decision contexts. The aim is to develop and evaluate a high-performing decision model.
+
+PK HUD is the implemented application. PK Client provides the independent C++ client path. Reversel Protocol supplies the technical understanding used by both, while Needle-0 names both the upcoming dataset and its associated decision model. The function count refers to identified code functions.
 
 ## Communication and data pipeline
 
-The research follows several layers rather than treating every captured buffer as a complete network message:
+The research follows data through transport, parsing, attribution, storage, and analysis:
 
-```text
-Transport and local IPC
-          |
-Fragment reconstruction and decryption boundary
-          |
-Plaintext readers and application framing
-          |
-Message dispatch / subscription routing
-          |
-Table, hand, player, and tournament state
-          |
-Attributed events with source references
-          |
-SQLite -> replay -> statistics and research models
-```
+<p align="left">
+  <img src="assets/communication-pipeline.svg" width="720" alt="Communication and data pipeline">
+</p>
 
-Some internal messages are constructed locally. Others carry subscription images or incremental updates. Their identifiers and paths belong to different namespaces and cannot be combined into a single count without qualification.
+Some internal messages are constructed locally. Others carry subscription images or incremental updates. Their identifiers and paths are documented within their respective namespaces.
 
 ## Findings and implemented components
 
@@ -62,11 +93,11 @@ The private research has established and documented:
 - Offline replay and source-to-database checks for selected recorded sequences.
 - Decision-context reconstruction and experimental behavioral modeling from observed public actions.
 
-These are bounded findings. A result verified on a named build or recorded sequence is not presented as a universal protocol specification.
+Each finding is documented with its analyzed build, supporting evidence, and validation scope.
 
 ## What data matters?
 
-The useful unit of analysis is a **decision with its preceding context**, rather than an isolated action or a large volume of raw traffic.
+The useful unit of analysis is a **decision with its preceding context**.
 
 | Information | Research role |
 |---|---|
@@ -78,29 +109,7 @@ The useful unit of analysis is a **decision with its preceding context**, rather
 | Tournament population, payouts, bounty context, and entry conditions | Support contextual analysis where those fields are qualified. |
 | Capture gaps, source references, decoder versions, and corrections | Make results auditable and prevent duplicate or misleading observations. |
 
-Revealed cards and hand outcomes may support later analysis, but must not leak into the input describing an earlier decision. Hidden opponent cards are not a collection target.
-
-## Methodology
-
-### Start with existing evidence
-
-Research begins with recorded findings, parsers, traces, tests, and work from related components. New analysis should resolve a specific missing connection rather than repeat an inventory.
-
-### Follow the complete chain
-
-A protocol claim is traced through the relevant producer, reader, routing condition, state update, and consumer. Type names and RTTI are useful clues; they are not sufficient evidence of field semantics or network reachability.
-
-### Keep claims versioned
-
-Build identity, binary hashes, relevant code locations, recording references, and known limits accompany technical findings. Offsets and layouts are not silently transferred between builds.
-
-### Validate against recordings
-
-Offline replays exercise decoding, attribution, storage, and consumption. Negative cases check missing context, incomplete captures, conflicting identities, stale state, and repeated events.
-
-### Preserve uncertainty
-
-Findings distinguish **confirmed**, **probable**, and **unverified** behavior. Missing values remain unknown. Derived values remain labeled as derived, and partial observations do not become complete hands.
+The analysis uses public game observations and the local player's own context. Revealed cards and hand outcomes support retrospective analysis, with decision inputs restricted to information available before the action.
 
 ## Tools and engineering
 
@@ -111,27 +120,17 @@ The work combines:
 - **Data engineering:** Python decoders, SQLite persistence, deterministic offline replay.
 - **Automation and validation:** PowerShell tooling, finite fixtures, source manifests, and regression tests.
 
-## Current limits
-
-The work is ongoing. Message identification and routing coverage do not mean that every field is decoded or every game variant is supported.
-
-In particular, complete field attribution, legal-action delivery, monetary units, build compatibility, and continuous operation require their own evidence. The project does not claim exhaustive protocol coverage, production readiness, profitable play, or a complete model of player behavior.
-
-The existing behavioral models are exploratory. Predicting observed actions is different from proving that an action is optimal.
-
 ## Publication scope
 
-This public repository documents the purpose, architecture, methodology, and scope of the research. The implementation and detailed evidence remain private.
+This public repository presents the project's goals, applications, architecture, and research findings. The underlying implementation and detailed evidence are maintained in the private research workspace.
 
-Unpublished material includes raw captures, instrumentation, executable offsets and signatures, client-specific protocol contracts, and operational configuration. A public research dataset is a possible future direction; no such dataset is released here.
-
-There is currently no public installation procedure or runnable release.
+Needle-0 brings together the planned research dataset and its associated decision model, extending the work from protocol observation to data-driven experimentation.
 
 ## Project context
 
-This is an independent personal research effort involving the desktop client distributed to end users. The research does not rely on privileged, administrative, internal, or server-side access.
+This is an independent personal research effort focused on the desktop client distributed to end users, combining client-side static analysis, runtime observation, and offline experimentation.
 
-The project is not affiliated with or endorsed by PokerStars. Product names and trademarks belong to their respective owners.
+PokerStars is a trademark of its respective owner. PK Research is an independently developed project.
 
 ## Contact
 
