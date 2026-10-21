@@ -70,19 +70,13 @@ Some internal messages are constructed locally. Others carry subscription images
 
 ### Network decryption pipeline
 
-The newer collection path starts with the official client's network traffic. A PCAPNG capture is reassembled by connection, decrypted with that session's TLS secrets, then decoded through **CommLib Pike → LZHL → Stream0 → CommMsg**. The five stages below separate transport security, the observed CommLib cipher, stateful compression, message framing and logical/application decoding.
+Captured client traffic is decoded into protocol messages through five stages:
 
 <p align="left">
-  <img src="assets/network-decryption.svg" width="720" alt="Five-stage network pipeline: TLS decryption, CommLib Pike decryption, LZHL decompression, Stream0 message reassembly, and CommMsg channel decoding">
+  <img src="assets/network-decryption.svg" width="720" alt="TLS, CommLib Pike, LZHL, Stream0 and CommMsg">
 </p>
 
-TLS decryption alone does not expose the final application messages in the recorded session: Pike and LZHL must also be decoded in order. Channel guards are then handled according to the negotiated mode. The qualified sample uses `NULL` guards on the application channels decoded so far; that result does not establish decryption of every possible DH/AES-protected channel.
-
-A **30-second recorded session on Windows build 83.3.2.0** produced **2,786,863 bytes of TLS application data**, then **18,385,177 bytes of decompressed Stream0 data containing 127 complete messages**. Two independent offline replays produced identical output. TLS decoding without the session secrets yielded no application bytes, and absent/altered Pike seeds failed the protocol checks. These are results from one finite corpus, not throughput benchmarks or a claim of complete protocol coverage.
-
-This approach moves message collection out of downstream game-state objects. Targeted native instrumentation is still used to export the official client's session secrets; the network path is not memory-free. Export-point signatures and compatibility checks are being developed to make build changes easier to requalify. Secret material and raw captures remain private.
-
-**Current integration boundary:** decrypting messages and replaying subscription trees does not by itself certify game data. The next step is to reuse the existing parsers and database connector to validate each of Needle-0's 36 inputs through extraction, table/hand/player attribution, persistence and SQL readback. That integration is in progress.
+Network decryption and replay are demonstrated on recorded sessions. Integration with the 36-input Needle-0 dataset is in progress.
 
 ## Findings and implemented components
 
