@@ -45,29 +45,12 @@ It is an independent experimental project, driven by learning, building, and tes
 
 ## Project ecosystem
 
-### PK HUD
-
-**Done**
-
-The application and HUD, including the observation probe, protocol parser, player metrics, database, logistic-regression behavioral prediction, decision analysis, and LLM advice and explanations.
-
-### PK Client
-
-**Work in progress, demonstrated functionality**
-
-An independent client reimplementation in C++, covering communication, logical connections, authentication, subscriptions, and state synchronization. Integration continues.
-
-### Reversel Protocol
-
-**Partial, sufficient for current needs**
-
-Protocol research and documentation, with **150+ protocol-related functions identified**. The project uses the subset relevant to game-state reconstruction and behavioral analysis.
-
-### Needle-0
-
-**Coming soon**
-
-The research dataset and its associated decision model, built from structured game observations and decision contexts. The aim is to develop and evaluate a high-performing decision model.
+| Project | Purpose | Status |
+|---|---|---|
+| **PK HUD** | Application and HUD with an observation probe, protocol parser, player metrics, database, logistic-regression behavioral prediction, decision analysis, and LLM advice and explanations. | **Done** |
+| **PK Client** | Independent client reimplementation in C++, covering communication, logical connections, authentication, subscriptions, and state synchronization. | **Work in progress**, with demonstrated functionality. |
+| **Reversel Protocol** | Protocol research and documentation, with **150+ protocol-related functions identified**. The project uses the subset relevant to game-state reconstruction and behavioral analysis. | **Partial**, sufficient for current needs. |
+| **Needle-0** | Research dataset and associated decision model, built from structured game observations and decision contexts. | **Coming soon**, with strong decision performance as an objective. |
 
 PK HUD is the implemented application. PK Client provides the independent C++ client path. Reversel Protocol supplies the technical understanding used by both, while Needle-0 names both the upcoming dataset and its associated decision model. The function count refers to identified code functions.
 
