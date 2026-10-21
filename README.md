@@ -73,10 +73,8 @@ Some internal messages are constructed locally. Others carry subscription images
 Captured client traffic is decoded into protocol messages through five stages:
 
 <p align="left">
-  <img src="assets/network-decryption.svg" width="720" alt="TLS, CommLib Pike, LZHL, Stream0 and CommMsg">
+  <img src="assets/network-pipeline-overview.svg" width="720" alt="TLS, CommLib Pike, LZHL, Stream0 and CommMsg">
 </p>
-
-Network decryption and replay are demonstrated on recorded sessions. Integration with the 36-input Needle-0 dataset is in progress.
 
 ## Findings and implemented components
 
