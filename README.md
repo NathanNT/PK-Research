@@ -48,18 +48,18 @@ source, table, hand, player and position in the event sequence. That makes it
 possible to study behavior without silently filling gaps or using later
 information.
 
-The work has three connected parts.
+Protocol reconstruction provides the foundation. It decodes messages, tracks
+logical connections and subscription updates, and preserves identity across
+table and session generations. Unknown values and incomplete hands remain
+explicit.
 
-- **Protocol and state reconstruction.** Decode messages, track logical
-  connections and subscription updates, and preserve identity across table
-  and session generations. Unknown values and incomplete hands remain explicit.
-- **Behavioral modeling.** Predict action probabilities from the current
-  context and the player's earlier observations. An observed action is a
-  behavioral label, not evidence that the action was optimal.
-- **Decision research.** Compare candidate actions using card equity,
-  declared opponent policies and expected chip value. Prediction quality,
-  simulated decision quality and performance in a real game are evaluated
-  separately.
+Behavioral modeling uses those observations to predict action probabilities
+from the current context and the player's earlier decisions. An observed
+action provides a behavioral label, not evidence that the action was optimal.
+Decision research builds on that distinction by comparing candidate actions
+through card equity, declared opponent policies and expected chip value.
+Prediction quality, simulated decision quality and performance in a real
+game are evaluated separately.
 
 The existing modeling work includes population and player statistics and
 **P6**, an experimental hierarchical logistic-regression model. Native equity
@@ -98,12 +98,11 @@ encoder combines those summaries in time order. A separate branch processes
 the current situation. Together, they can represent how the same player
 behaves differently across stack depths, positions and betting contexts.
 
-The design has two stages.
-
-1. **PPE-Predict** estimates action probabilities and conditional bet-size
-   distributions from the current observation and player representation.
-2. **PPE-Policy** uses that representation to train a policy and value function
-   in simulation, starting with small games before restricted NLHE subgames.
+**PPE-Predict** uses the current observation and player representation to
+estimate action probabilities and conditional bet-size distributions.
+**PPE-Policy** builds on that representation to train a policy and value
+function in simulation. Its evaluation starts with small games before
+moving to restricted NLHE subgames.
 
 Observed amounts are model inputs. The next action and its amount are targets.
 Reliability is measured outside the neural network using held-out performance
@@ -121,9 +120,9 @@ players or strategic profitability.
 The earlier inventory of 36 information requirements describes source and
 context needs. It is not a vector of 36 scalar model inputs.
 
-Read the [Needle-0 technical specification](docs/models/needle-0/MODEL.en.md)
-for the architecture, equations, training procedure, external reliability
-layer and implementation plan.
+The [Needle-0 technical document](docs/models/needle-0/MODEL.en.md) explains
+how the architecture works, develops its equations and connects the training
+procedure, external reliability layer and implementation in a single account.
 
 ## Communication and data pipeline
 
