@@ -2,20 +2,27 @@
   <img src="assets/research-banner.png" width="800" alt="PK Research: protocol research">
 </p>
 
+**Independent research into the PokerStars desktop client, its communication pipeline and the reconstruction of structured poker observations.**
 
-**Independent reverse-engineering research into the PokerStars desktop client, its communication pipeline, and the reconstruction of structured poker observations.**
+PK Research connects protocol analysis, player modeling and decision research.
+The project follows data from transport and local communication through
+plaintext parsing, message dispatch, application state and persistent storage.
+The private workspace includes a table observation interface, a headless
+mini-client, recorded history, replay tools and experimental decision analysis.
 
-Analyzed Windows builds: **83.0.8.4** and **83.3.2.0**. Protocol findings are tied to the build on which they were established.
+The analyzed Windows builds include **83.0.8.4** and **83.3.2.0**. Protocol
+findings retain the build and evidence on which they were established.
 
-The project studies how data travels through a native desktop application: from transport and local inter-process communication to plaintext parsing, message dispatch, application state, and persistent storage.
-
-Its purpose is experimental: connect reverse engineering, artificial intelligence, and game theory through player-behavior analysis, predictive models, decision research, and poker learning tools.
-
-> This repository presents PK Research, its applications, technical architecture, and findings from ongoing work on the PokerStars desktop client.
+This public repository presents the project, selected illustrations and its
+research design. Implementation sources and detailed evidence remain in the
+private research workspace.
 
 ## Interface preview
 
-The images below show the existing application interface running against an isolated demonstration server. **All displayed players, hands, recommendations, counts, and amounts are synthetic.** They illustrate table observation, decision analysis, collection monitoring, and data-quality inspection.
+These images show the existing interface running against an isolated
+demonstration server. **All displayed players, hands, recommendations, counts
+and amounts are synthetic.** They illustrate table observation, decision
+analysis, collection monitoring and data-quality inspection.
 
 ### Attributed table observations
 
@@ -23,7 +30,7 @@ The images below show the existing application interface running against an isol
   <img src="assets/table-observation.png" width="640" alt="Table observation interface with fictitious players, a sample board, and synthetic decision context">
 </p>
 
-*Demonstration of table state, player context, and the decision-analysis interface. All figures and outputs are fabricated fixtures.*
+*Table state, player context and the decision-analysis interface shown with fabricated fixtures.*
 
 ### Collection and data quality
 
@@ -31,46 +38,112 @@ The images below show the existing application interface running against an isol
   <img src="assets/database-provenance.png" width="640" alt="Database interface with synthetic row counts, storage figures, and field completeness indicators">
 </p>
 
-*Demonstration of collection monitoring and explicit missing-field visibility. The displayed percentages illustrate field completeness using synthetic records.*
+*Collection monitoring and missing-field visibility. The displayed percentages come from synthetic records.*
 
-## Research objectives and experimental method
+## Research objectives
 
-PK Research uses poker as a test environment for **sequential decision-making under imperfect information**. The technical objective is to turn protocol messages into reproducible observations: a player's action, the information available immediately before it, and the sequence of events that produced that state.
+Poker provides a setting for studying sequential decisions under imperfect
+information. The first task is to reconstruct an observation with a known
+source, table, hand, player and position in the event sequence. That makes it
+possible to study behavior without silently filling gaps or using later
+information.
 
-The work connects three layers:
+The work has three connected parts.
 
-- **Protocol and state reconstruction.** Recover message boundaries and typed payloads, maintain logical channels and subscription images/deltas, and attach each observation to its table, hand, player and session generation. Unknown values, incomplete hands and capture gaps remain explicit.
-- **Behavioral inference.** Estimate action probabilities conditioned on the observed decision context: position, stack depth, betting history, opponents and board. Observed actions are behavioral labels, not proof of optimal play. The next dataset/model, **Needle-0**, targets a fixed inventory of **36 required inputs**; their end-to-end network-to-database validation is still in progress.
-- **Game-theoretic experimentation.** Compare candidate decisions using card equity, assumed opponent strategies and expected chip value. Evaluate predictive models on held-out observations, study sensitivity to model assumptions, and separate prediction quality from decision quality. Tournament payout utility and equilibrium solving require their own models; a behavioral predictor is not a GTO solver.
+- **Protocol and state reconstruction.** Decode messages, track logical
+  connections and subscription updates, and preserve identity across table
+  and session generations. Unknown values and incomplete hands remain explicit.
+- **Behavioral modeling.** Predict action probabilities from the current
+  context and the player's earlier observations. An observed action is a
+  behavioral label, not evidence that the action was optimal.
+- **Decision research.** Compare candidate actions using card equity,
+  declared opponent policies and expected chip value. Prediction quality,
+  simulated decision quality and performance in a real game are evaluated
+  separately.
 
-The implemented modeling work includes population/player behavioral statistics and an experimental hierarchical logistic-regression model. Native simulation and decision-analysis components provide a separate calculation path. LLM explanations are another consumer of the available context; they are not a substitute for a correctly reconstructed state.
+The existing modeling work includes population and player statistics and
+**P6**, an experimental hierarchical logistic-regression model. Native equity
+and EV calculations form a separate numerical path. The LLM adviser can
+select from evaluated candidate actions and explain its choice. Recorded
+replay and rendering checks establish parts of that workflow, not a general
+strategic advantage.
 
-Experiments are based on versioned decoders, source references and deterministic replay. Decision inputs are restricted to information available **before** the action; later cards and outcomes belong to retrospective evaluation. This makes it possible to investigate model calibration, opponent adaptation and strategic uncertainty without treating observed winnings as evidence of an optimal policy. The project is intended for research, offline analysis and learning tools; it does not automate betting actions.
+Experiments use versioned decoders, source references and deterministic
+replay. Inputs follow an explicit information boundary. Current exported
+observations precede the received action notification, which does not by
+itself prove that every feature preceded the human's choice. Later cards,
+outcomes and target amounts stay outside that target's inputs.
+
+The project supports research, offline analysis and learning tools. It does
+not automate betting actions.
 
 ## Project ecosystem
 
-| Project | Purpose | Status |
-|---|---|---|
-| **PK HUD** | Application and HUD with an observation probe, protocol parser, player metrics, database, logistic-regression behavioral prediction, decision analysis, and LLM advice and explanations. | **Implemented**; source migration and data-quality validation continue. |
-| **PK Client** | Independent headless protocol implementation covering transport, logical connections, authentication, subscriptions, and state synchronization. | **Functional POC validated** for the qualified profile; API and web control are a separate workstream. |
-| **Reversel Protocol** | Protocol research and documentation, with **150+ protocol-related functions identified**. The project uses the subset relevant to game-state reconstruction and behavioral analysis. | **Partial**, sufficient for current needs. |
-| **Needle-0** | Research dataset and associated decision model, built from structured game observations and decision contexts. | **Coming soon**, with strong decision performance as an objective. |
+| Project | Purpose | Current status |
+| --- | --- | --- |
+| **PK HUD** | Table observation, player metrics, durable history, replay, decision analysis and LLM advice. | Implemented. Data coverage and end-to-end validation remain specific to each source and task. |
+| **PK Client** | Headless protocol implementation with transport, logical connections, authentication, subscriptions and state synchronization. | The qualified protocol path, API and web controls exist. Coverage depends on the profile and scenario validated. |
+| **Reversel Protocol** | Protocol research supporting the application and client. Earlier work identified more than 150 protocol-related functions. | Partial. Findings retain their build, evidence and validation scope. |
+| **Needle-0** | Player-history representation learning through PPE-Predict, followed by a policy trained in simulation through PPE-Policy. | Architecture defined. Causal data preparation and lightweight baseline experiments exist. The PPE neural network has not been trained. |
 
-PK HUD is the implemented application. PK Client provides the independent headless client path. Reversel Protocol supplies the technical understanding used by both, while Needle-0 names both the upcoming dataset and its associated decision model. The function count refers to identified code functions.
+PK HUD is the application. PK Client provides the independent client path.
+Reversel Protocol documents the underlying mechanisms. Needle-0 builds on the
+resulting observations to study player behavior and adaptation.
+
+## Needle-0: Poker Player Encoder
+
+Needle-0 learns from structured histories rather than assigning a fixed label
+to a player. A hand encoder summarizes events within each past hand. A history
+encoder combines those summaries in time order. A separate branch processes
+the current situation. Together, they can represent how the same player
+behaves differently across stack depths, positions and betting contexts.
+
+The design has two stages.
+
+1. **PPE-Predict** estimates action probabilities and conditional bet-size
+   distributions from the current observation and player representation.
+2. **PPE-Policy** uses that representation to train a policy and value function
+   in simulation, starting with small games before restricted NLHE subgames.
+
+Observed amounts are model inputs. The next action and its amount are targets.
+Reliability is measured outside the neural network using held-out performance
+on comparable cases. This keeps the first version free of a mandatory neural
+confidence head.
+
+The private review verified an export of **9,144 reduced-action examples from
+10 sources** and the artifacts of **nine lightweight baseline models**.
+These are data and baseline results, not results from a trained PPE Transformer.
+Legal-action masks, sizing labels and independent evaluation groups still have
+limited coverage. Two additional cohorts can support temporal pilot studies
+of already observed players. They do not establish generalization to unseen
+players or strategic profitability.
+
+The earlier inventory of 36 information requirements describes source and
+context needs. It is not a vector of 36 scalar model inputs.
+
+Read the [Needle-0 technical specification](docs/models/needle-0/MODEL.en.md)
+for the architecture, equations, training procedure, external reliability
+layer and implementation plan.
 
 ## Communication and data pipeline
 
-The original investigation follows the native client from transport and local IPC through in-process readers, dispatch and attributed application state:
+The original investigation follows the native client from transport and local
+communication through in-process readers, dispatch and attributed application
+state. The network and connected mini-client paths reuse common state
+reconstruction, presentation and SQL persistence components.
 
 <p align="left">
   <img src="assets/communication-pipeline.svg" width="720" alt="Communication and data pipeline">
 </p>
 
-Some internal messages are constructed locally. Others carry subscription images or incremental updates. Their identifiers and paths are documented within their respective namespaces.
+Some internal messages are constructed locally. Others carry subscription
+images or incremental updates. Identifiers and paths retain their own
+namespaces.
 
-### Network decryption pipeline
+### Network decoding
 
-Captured client traffic is decoded into protocol messages through five stages:
+Captured traffic is decoded through the TLS, CommLib Pike, LZHL, Stream0
+and CommMsg stages shown below.
 
 <p align="left">
   <img src="assets/network-pipeline-stages.svg" width="720" alt="TLS, CommLib Pike, LZHL, Stream0 and CommMsg">
@@ -78,58 +151,58 @@ Captured client traffic is decoded into protocol messages through five stages:
 
 ## Findings and implemented components
 
-The private research has established and documented:
+The private work has documented the local transport and IPC paths of analyzed
+builds, fragmented TLS reconstruction and reproducible Pike, LZHL and Stream0
+decoding on qualified captures. It also covers native readers, dispatchers,
+subscription callbacks and selected table and tournament structures.
 
-- The active local transport and IPC path for analyzed client builds.
-- Reconstruction of fragmented TLS records, export of the official client's TLS/Pike session secrets, and reproducible network decoding through Pike, LZHL and Stream0 on a qualified capture.
-- Parts of the message-processing pipeline, including native readers, virtual tables, type information, dispatchers, and subscription callbacks.
-- Selected table and tournament structures covering identities, seats, hand state, actions, cards, amounts, and configuration.
-- The distinction between initial subscription images, later updates, and state invalidation across generations.
-- Offline replay and source-to-database checks for selected recorded sequences.
-- Decision-context reconstruction and experimental behavioral modeling from observed public actions.
+State reconstruction distinguishes initial images, later updates and
+invalidation across generations. Selected recordings have passed replay and
+source-to-database checks. These findings support attributed actions, cards,
+amounts, seats and decision context within their documented scope.
 
-Each finding is documented with its analyzed build, supporting evidence, and validation scope.
+The observation stack, headless client and numerical decision engine are
+implemented components. Complete economic state, hidden-card beliefs, rake,
+tournament utility and strategic performance require their own validation.
 
 ## What data matters?
 
-The useful unit of analysis is a **decision with its preceding context**.
+The useful unit is a decision paired with the information available before
+its declared boundary.
 
 | Information | Research role |
-|---|---|
-| Player, table, hand, seat, session generation, and event order | Keep observations attached to the correct situation. |
-| Game format, betting rules, blinds, antes, and amount units | Make comparisons between compatible situations. |
-| Position, active opponents, stacks, contributions, board, and pots | Describe what was known before the action. |
-| Amount to call, offered actions, raise bounds, and decision freshness | Distinguish actual opportunities from unavailable choices. |
-| Observed action and amount | Provide behavioral observations and labels. |
-| Tournament population, payouts, bounty context, and entry conditions | Support contextual analysis where those fields are qualified. |
-| Capture gaps, source references, decoder versions, and corrections | Make results auditable and prevent duplicate or misleading observations. |
+| --- | --- |
+| Player, table, hand, seat, session generation and event order | Keep each observation attached to its situation |
+| Game format, betting rules, blinds, antes and units | Compare compatible situations |
+| Position, opponents, stacks, contributions, board and pots | Describe the available context |
+| Amount to call, legal actions, raise bounds and freshness | Distinguish real opportunities from unknown choices |
+| Observed action and amount | Supply behavioral labels |
+| Tournament population, payouts, bounties and entry conditions | Add context where those fields are verified |
+| Capture gaps, source references, reader versions and corrections | Make results reproducible and prevent duplicate or misleading records |
 
-The analysis uses public game observations and the local player's own context. Revealed cards and hand outcomes support retrospective analysis, with decision inputs restricted to information available before the action.
+Public game observations and the local player's permitted context are kept
+separate from hidden opponent information. Revealed cards and outcomes can
+support later analysis without leaking into earlier decision inputs.
 
 ## Tools and engineering
 
-The work combines:
-
-- **Static analysis:** historical IDA work and current REA/Ghidra analysis.
-- **Runtime investigation:** targeted Frida instrumentation for session-secret export, Windows API/IPC analysis, and guarded native entry-point research.
-- **Network analysis:** PCAPNG capture, Wireshark/TShark TLS decoding, and deterministic CommLib Pike/LZHL/Stream0 replay.
-- **Data engineering:** Python decoders, SQLite persistence, deterministic offline replay.
-- **Automation and validation:** PowerShell tooling, finite fixtures, source manifests, and regression tests.
+The workspace combines historical IDA work with current REA analysis,
+targeted Frida instrumentation, Windows API and IPC investigation, network
+capture and replay, Python decoders and SQLite persistence. PowerShell tools,
+source manifests, finite fixtures and regression tests support reproducibility.
 
 ## Publication scope
 
-This public repository presents the project's goals, applications, architecture, and research findings. The underlying implementation and detailed evidence are maintained in the private research workspace.
+This repository contains the public overview, existing illustrations and the
+Needle-0 design document. Implementation code, individual game records,
+private configuration, credentials and detailed experimental evidence remain
+in the private workspace.
 
-Needle-0 brings together the planned research dataset and its associated decision model, extending the work from protocol observation to data-driven experimentation.
-
-## Project context
-
-This is an independent personal research effort focused on the desktop client distributed to end users, combining client-side static analysis, runtime observation, and offline experimentation.
-
-PokerStars is a trademark of its respective owner. PK Research is an independently developed project.
+This is an independent personal research project. PokerStars is a trademark
+of its respective owner.
 
 ## Contact
 
-For discussion of the methodology, architecture, or research findings:
+For discussion of the methodology, architecture or research findings:
 
 **[nathantbl1@gmail.com](mailto:nathantbl1@gmail.com)**
