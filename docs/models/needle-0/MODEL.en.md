@@ -1,8 +1,8 @@
 # Needle-0: Poker Player Encoder
 
-## Model, mathematics and implementation
+*Model, mathematics and implementation*
 
-**Document version:** 0.2, English edition, November 4, 2026.
+**Document version:** 0.3, English edition, November 4, 2026.
 
 **Architecture:** PPE-Predict and PPE-Policy share a player history encoder.
 
@@ -33,20 +33,23 @@ baselines from the neural components that still need to be built.
 Transformer, causal history, conditional prediction, external calibration,
 policy learning.
 
-## 1. Design and scope
+## Design and scope
 
 The model keeps the hand encoder, history encoder and current-hand branch
-defined in the PPE v0.1 proposal. The following decisions guide the first
-implementation.
+defined in the PPE v0.1 proposal. It learns from contextual observations
+rather than attaching learned embeddings to player names. The current
+situation also enters the prediction head, allowing the same representation
+to describe different reactions at different stack depths or positions.
 
-| Design choice | What it means in practice |
-| --- | --- |
-| Learn behavior from contextual observations | Player names are not learned embeddings or personality classes |
-| Supply the current situation to the prediction head | A player can behave differently depending on the situation |
-| Include observed amounts in the inputs | Historical actions retain their amounts and their meaning |
-| Predict action type and sizing separately | The next amount is a target, not an input for that same decision |
-| Measure reliability outside the network | The first version does not need a neural confidence head |
-| Separate prediction from strategy | Predicting an action well does not establish the quality of a response |
+Historical actions retain their observed amounts and the meaning of those
+amounts. The next action and its size are predicted separately, so a future
+amount never becomes an input for its own prediction. Reliability is measured
+outside the network. The first version therefore does not need a neural
+confidence head.
+
+Prediction and strategy remain separate research questions. An accurate
+estimate of what an opponent will do does not, by itself, establish which
+response produces the best result.
 
 The dimensions below are starting values. They are not measured optima.
 Summary tokens and pseudocode describe one way to implement the agreed
@@ -59,7 +62,7 @@ also called P6 use a different naming scheme.
 The first strategic experiments take place offline in a simulator. Connecting
 PPE to a table adviser is a separate integration task.
 
-## 2. Notation and prediction task
+## What the model predicts
 
 | Symbol | Meaning |
 | --- | --- |
@@ -105,9 +108,9 @@ therefore does not force the same prediction when the stack, position or
 amount to call changes. The past-hand encoder also receives the context in
 which earlier actions occurred.
 
-## 3. Data and information boundaries
+## Observations and available information
 
-### 3.1 Existing data preparation
+### Existing data preparation
 
 The private workspace contains an exporter called `tools/needle_dataset`.
 Its `needle-causal-dataset-v0.1.1` format has eight JSONL tables and a
@@ -133,7 +136,7 @@ tensorizer. It does not yet return PPE tensors.
 These implementation paths refer to the private workspace. The public
 repository contains the design and project overview, not these source files.
 
-### 3.2 Information that the model may use
+### Information that the model may use
 
 Every feature must satisfy
 
@@ -155,7 +158,7 @@ action notification. That boundary does not by itself prove that every
 feature was available before the human chose the action. The task and its
 results retain this distinction, especially for balances and timing.
 
-### 3.3 Event representation
+### Event representation
 
 An event contains the categories and numerical values needed to describe it.
 These include its action or event type, street, whether the actor is the
@@ -183,7 +186,7 @@ The transformation $T_{\mathrm{train}}$, its parameters and the mask are
 versioned. Normalization is fitted on training data and then frozen. The
 mask lets the network distinguish the fill value from an observed zero.
 
-### 3.4 Amounts and units
+### Amounts and units
 
 Past amounts are normal model inputs. For an aggressive target, the labels
 can distinguish the amount added, the total amount reached and a ratio to
@@ -204,7 +207,7 @@ verified positive big blind. A pot ratio requires a verified positive
 denominator. An unavailable ratio stays missing. The future target amount
 is used only to calculate the loss.
 
-### 3.5 Partial hands and history limits
+### Partial hands and history limits
 
 The model receives permitted hand fragments with explicit coverage. A
 partial sequence is not completed with later events or marked as a fully
@@ -220,9 +223,9 @@ by the focal player. The number of hands and events actually encoded is
 reported separately. The public prefix of the current hand remains available
 at every value of $K$.
 
-## 4. Hierarchical encoder
+## Learning a player representation
 
-### 4.1 Architecture
+### Architecture
 
 ```mermaid
 flowchart TD
@@ -244,7 +247,7 @@ flowchart TD
 Reliability is outside the neural path. It is not a fourth encoder and does
 not change the player representation.
 
-### 4.2 Event embeddings
+### Event embeddings
 
 For event $e_{k,\ell}$ in hand $k$, the input vector has width $d$.
 
@@ -265,7 +268,7 @@ values, $b$ contains availability masks, and $q$ describes quality and
 visibility. The term $p$ encodes sequence order. The focal player is marked
 through roles and relative positions, not a username embedding.
 
-### 4.3 Encoding a past hand
+### Encoding a past hand
 
 The hand encoder is shared across hands and players.
 
@@ -289,15 +292,14 @@ $$
 $M$ is zero for permitted connections and $-\infty$ for forbidden ones.
 The attention blocks follow the [Transformer architecture](https://arxiv.org/abs/1706.03762).
 
-### 4.4 Encoding the player's history
+### Encoding the player's history
 
 Each hand summary receives ordering information and an age feature when
 that age is known.
 
 $$
 \begin{aligned}
-\bar u_{j,k}&=u_{j,k}+p_k^{\mathrm{hand}}+
-ho(\Delta t_k,b_k^{\mathrm{time}}),\\
+\bar u_{j,k}&=u_{j,k}+p_k^{\mathrm{hand}}+\rho(\Delta t_k,b_k^{\mathrm{time}}),\\
 z_j^t&=W_z\,E_{\mathrm{history},\theta}
 (\bar u_{j,1},\ldots,\bar u_{j,H})+b_z.
 \end{aligned}
@@ -312,7 +314,7 @@ coverage support predictions at $K=0$. Training episodes include this case.
 The model does not need a personality label or a separate confidence label
 attached to the representation.
 
-### 4.5 Encoding the current hand
+### Encoding the current hand
 
 The current branch produces
 
@@ -328,7 +330,7 @@ would prevent it from doing that.
 Visible cards, stacks, positions, the amount to call and current context enter
 this branch with their availability masks.
 
-### 4.6 Fusion and initial dimensions
+### Fusion and initial dimensions
 
 The prediction head combines the current state, player representation and
 coverage metadata $\kappa_t$.
@@ -358,9 +360,9 @@ estimate of 5 to 15 million parameters is not a count from an existing
 implementation. Pooling, activation and normalization choices belong in
 the checkpoint configuration as well as its dimensions.
 
-## 5. PPE-Predict outputs
+## Predicting actions and bet sizes
 
-### 5.1 Action probabilities
+### Action probabilities
 
 The ordered action vocabulary is
 
@@ -383,7 +385,7 @@ certifying the full action menu. The `action_masked` task requires a verified
 mask for that decision. The output retains the task status. An empty mask
 or a mask inconsistent with its label produces an explicit diagnostic.
 
-### 5.2 Sizing probabilities
+### Sizing probabilities
 
 For $a\in\{\mathrm{bet},\mathrm{raise}\}$, the sizing head returns
 
@@ -404,7 +406,7 @@ All-in is a status associated with an action and an amount, not a sixth
 action category. A class spanning several amounts cannot be presented as
 an exact observed amount. Unknown all-in status remains unknown.
 
-### 5.3 Loss and partial labels
+### Loss and partial labels
 
 For a fully eligible example, the prediction loss is
 
@@ -433,9 +435,9 @@ The starting value is $\lambda_s=1$, selected later on validation data.
 Different history lengths for the same target do not multiply its total
 training weight. Comparisons use the same targets and weighting.
 
-## 6. Behavioral training
+## Training the predictor
 
-### 6.1 Episodes and support length
+### Episodes and support length
 
 An episode combines the focal player's permitted history, a current prefix
 and one or more later decisions. The loader varies support length and
@@ -447,32 +449,31 @@ sizing classes. The primary comparison uses the same targets at each depth.
 Results for the naturally available population at each $K$ are reported
 separately because those populations can differ.
 
-### 6.2 Initial optimization settings
+### Initial optimization settings
 
-| Parameter | Starting value |
-| --- | --- |
-| Optimizer | AdamW |
-| Learning rate | $3\times10^{-4}$ |
-| Weight decay | $10^{-2}$ |
-| Gradient clipping | Norm 1 |
-| Dropout | 0.1 |
-| Indicative empty-history probability | 0.2 |
-| Pilot seeds | 11, 23, 47 |
-| Checkpoint selection | Validation log-loss for the declared task |
+Training starts with AdamW at a learning rate of $3\times10^{-4}$, weight
+decay of $10^{-2}$ and dropout of 0.1. Gradients are clipped to norm 1.
+An indicative 20 percent of training episodes have an empty history so the
+model also learns to work without individual support. Pilot runs use seeds
+11, 23 and 47. Checkpoints are selected by validation log-loss for the
+declared task.
 
 Batch size depends on actual sequence lengths and measured resource use.
 Stopping rules, checkpoint selection and compute budget are fixed before
 the test is opened. An initial fit on a tiny subset checks whether the code
 can learn its labels. That check is not evidence of generalization.
 
-### 6.3 What each split can establish
+### What each split can establish
 
-| Evaluation split | Question |
-| --- | --- |
-| Temporal split with known focal players | Does earlier history help predict their later decisions? |
-| Reserved focal players | Can the encoder adapt to players absent from training? |
-| Entirely reserved participant groups | Does performance hold with disjoint participants in targets and support? |
-| Reserved domain | Does the model transfer to a declared format, stake or period? |
+A temporal split with known focal players asks whether their earlier history
+helps predict later decisions. Reserving focal players for the test asks a
+different question: whether the encoder can adapt to people absent from
+training. Reserving entire participant groups makes the separation stricter
+by removing overlap among the participants of both targets and support.
+
+Transfer to a new format, stake or period needs a reserved domain of its own.
+Success on the temporal task cannot be used as evidence for these broader
+forms of generalization.
 
 Hands remain indivisible. Purging follows the selected protocol and accounts
 for support and other participants. A local identity scope is not treated
@@ -483,9 +484,9 @@ Reliability calibration uses data separate from weight fitting. A reserved
 part of validation may serve that purpose, while the final test stays
 independent.
 
-## 7. External reliability
+## Measuring reliability outside the network
 
-### 7.1 Keep prediction and reliability separate
+### Keep prediction and reliability separate
 
 The network returns action and sizing distributions. An external layer
 measures how those predictions perform on comparable examples. It can group
@@ -501,7 +502,7 @@ Unpredictable actions and an unreliable model are different things. A
 a player who genuinely mixes those actions. Maximum probability or entropy
 alone cannot establish whether the model understands that situation.
 
-### 7.2 Estimate performance on comparable cases
+### Estimate performance on comparable cases
 
 A fixed grouping rule $g(\eta)$ uses characteristics available in example
 $\eta$. For a group $G$ and loss $\ell$, empirical risk is
@@ -529,7 +530,7 @@ loss. It is not called "the probability that this advice is correct" without
 validation of that interpretation. When comparable examples are insufficient,
 the status is `unknown` or `insufficient_support`.
 
-### 7.3 Calibration after training
+### Calibration after training
 
 Optional external calibration adjusts probabilities without retraining the
 encoder. One approach fits a positive temperature $T$ on reserved calibration
@@ -549,9 +550,9 @@ A new network version requires new validation before earlier reliability
 measurements can be reused. The baseline work has not yet established a
 calibrated reliability score for PPE.
 
-## 8. PPE-Policy
+## Learning a strategy with PPE-Policy
 
-### 8.1 Information available to the policy
+### Information available to the policy
 
 The policy receives its information set $I_t$, including its own private
 cards, public facts and permitted history. It also receives opponent
@@ -571,7 +572,7 @@ The simulator knows hidden cards to settle hands. Its observation interface
 does not expose them to the encoder or policy. Predicted action frequencies
 are not exact card ranges.
 
-### 8.2 Objective and training
+### Objective and training
 
 The initial reward is net chip gain in big blinds in a defined game without
 rake. Rake, tournament payouts and bounties need explicit conditions and
@@ -600,7 +601,7 @@ with an encoder trained without that pretraining, using comparable strategic
 budgets. Fine-tuning the pretrained encoder is a separate experiment. Changes
 to encoder weights invalidate its cached representations.
 
-### 8.3 Opponents and progression
+### Opponents and progression
 
 The simulated population includes reference policies, coherent variants
 with controlled biases and earlier checkpoints. Opponents persist across
@@ -618,19 +619,21 @@ them. Strategic evaluation separately measures EV, variation by opponent,
 independent sessions and cost. A result on a restricted tree retains that
 scope.
 
-## 9. Implementation plan
+## Implementation
 
-### 9.1 Reuse existing components
+### Reuse existing components
 
-| Component | Private workspace location | Status |
-| --- | --- | --- |
-| Export checks and `Dataset.input` | `tools/needle_dataset/dataset.py` | Existing |
-| Temporal evaluation plans | `tools/needle_dataset/experiments.py` | Existing |
-| Context and statistical baselines | `tools/needle_dataset/benchmark.py` | Existing |
-| Corrected scientific evaluation | `tools/needle_scientific_benchmark/` | Existing softmax baselines |
-| PPE tensorizer and Transformers | `tools/needle_ppe/` | Proposed location, not implemented |
-| External calibration and risk estimates | `tools/needle_ppe/reliability.py` | Not implemented |
-| Policy and simulator adapters | `tools/needle_ppe/policy.py` and adapters | Not implemented |
+The implementation can start from the existing `tools/needle_dataset`
+package. Its `dataset.py` provides export checks and `Dataset.input`,
+`experiments.py` defines temporal evaluation plans, and `benchmark.py`
+contains the context and statistical baselines. The corrected scientific
+evaluation lives in `tools/needle_scientific_benchmark` and currently uses
+softmax reference models.
+
+The neural components belong in the proposed `tools/needle_ppe` package.
+Its tensorizer, Transformers, reliability layer and policy adapters still
+need to be built. Keeping that boundary explicit avoids confusing the
+working data pipeline with a completed PPE network.
 
 Archived code can be reused from pinned Git objects. Its version belongs in
 the experiment manifest. Changing a reader requires contract checks and
@@ -655,7 +658,7 @@ PyTorch is the planned neural library. Its version will be pinned with the
 environment. Existing CPU baselines do not imply that the PPE modules are
 already installed or usable.
 
-### 9.2 Batch structure
+### Batch structure
 
 For batch size $B$, up to $H$ past hands, $L$ historical events per fragment
 and $T$ current events, the logical shapes are
@@ -684,7 +687,7 @@ Legal-action masks use a different name and convention, where a true value
 means permitted. A missing-feature mask is different from padding. It keeps
 an incomplete event rather than removing a position that has no event.
 
-### 9.3 Forward pass
+### Forward pass
 
 This pseudocode describes the intended flow. The methods still need to be
 implemented.
@@ -734,7 +737,7 @@ above, without a pretrained language model. The hand, history and current
 encoders have separate weights. Each encoder shares its own weights across
 examples and players.
 
-### 9.4 Inference
+### Inference
 
 Inference first checks source, viewpoint, information boundary, identity
 scope and schema, tensorizer and model versions. It then builds the permitted
@@ -749,7 +752,7 @@ The response contains distributions, task status, versions, actual encoded
 support and estimated or unknown reliability. The embedding can remain
 internal. It is not a human identity or a recommendation by itself.
 
-### 9.5 Checkpoints and caches
+### Checkpoints and caches
 
 A checkpoint contains weights, full configuration, vocabularies, sizing
 classes, numerical transforms, the visibility contract, dataset and split
@@ -764,29 +767,32 @@ Its cache must include those dependencies or be recomputed.
 Individual records, names, cards and identity mappings remain outside the
 public repository. Public reports contain aggregates and provenance hashes.
 
-## 10. Validation
+## Validation
 
-### 10.1 Software invariants
+### Software invariants
 
-| Check | Required behavior |
-| --- | --- |
-| Change the target or future events | The target's observation and tensors stay unchanged |
-| Streaming and causal batch reconstruction | Equal boundaries produce equal observations and tensors |
-| Add padding | Evaluation-mode predictions stay unchanged |
-| Rename only join keys | Predictions stay unchanged when roles and positions are preserved |
-| Empty history | Finite outputs and explicit zero coverage |
-| Real zero and missing value | Distinct representations through masks |
-| Verified legal mask | Zero probability on forbidden actions |
-| Unknown or empty legal mask | Explicit reduced status, unknown status or rejection for that task |
-| Incompatible quantities | Exclusion or rejection without an invented conversion |
-| Save and reload | Identical distributions, classes, transforms and hashes |
-| Change $K$ with fixed weights | Only the permitted support changes |
-| New checkpoint | Earlier caches and reliability measurements are invalidated or revalidated |
+The most important invariant is that changing a target or its future cannot
+change the observation or tensors used to predict it. Streaming and causal
+batch reconstruction must produce the same inputs at the same boundary.
+Adding padding or renaming join keys must also leave evaluation-mode
+predictions unchanged when the actual roles and positions are preserved.
+
+Boundary cases need defined behavior. An empty history must produce finite
+outputs and explicit zero coverage. A real zero must remain distinguishable
+from a missing value. Verified legal masks must assign zero probability to
+forbidden actions, while unknown or empty masks must produce the declared
+reduced status, unknown status or rejection. Incompatible quantities cannot
+be repaired through an invented conversion.
+
+Saving and reloading a checkpoint must preserve distributions, classes,
+transforms and hashes. Changing $K$ with fixed weights may change only the
+permitted support. A new checkpoint must invalidate or revalidate cached
+representations and earlier reliability measurements.
 
 Existing pipeline tests can be reused. PPE tensor, layer and checkpoint
 tests still need to be written with the neural implementation.
 
-### 10.2 Behavioral evaluation
+### Behavioral evaluation
 
 Comparators receive the same current context and permitted historical
 information. They include context alone, context with coverage, contextual
@@ -805,7 +811,7 @@ support depth and domain. Decision-weighted and player-weighted averages
 are distinct. Different seeds measure optimization variability, not
 independent player or session samples.
 
-### 10.3 Strategic evaluation
+### Strategic evaluation
 
 PPE-Policy is compared with a policy without history, a policy using explicit
 statistics and the references available for that game. An oracle comparator
@@ -818,7 +824,7 @@ The useful-effect threshold and budget are fixed before the final test.
 Better predictions do not establish better strategy, and simulation results
 do not establish performance in a real game.
 
-## 11. Verified progress and implementation sequence
+## Current progress
 
 As of November 4, 2026, the private technical review verified an export of
 9,144 decisions and artifacts for nine softmax reference models. Reproduced
@@ -832,26 +838,28 @@ is therefore a different task from training every planned output. The
 existing behavioral pilot remains descriptive. Its log-loss is not a
 Transformer result.
 
-Implementation follows these dependencies.
+The immediate work is to connect the existing data contract to the neural
+implementation. That starts with a pinned reader and experiment definition,
+while preserving earlier data and results. Two additional temporal cohorts
+can be examined under that contract without presenting them as strict tests
+on unseen players.
 
-1. Pin the reader and experiment contract while retaining earlier data and
-   results. Two additional temporal cohorts can be examined without calling
-   them strict tests on unseen players.
-2. Implement tensorization and its information, unit, padding, length and
-   identity checks. Verify agreement between streaming and batch inputs.
-3. Implement the three encoders and output heads. Check shapes, masks,
-   learning on a small fixture and checkpoint reloads.
-4. Train only eligible tasks and compare against the controls under a frozen
-   evaluation protocol.
-5. Fit external calibration and reliability estimates on reserved data, then
-   freeze them with the network version.
-6. Develop and evaluate PPE-Policy in the selected simulators with its own
-   comparators and visibility checks.
+The tensorizer provides the bridge to the network. Its information, unit,
+padding, length and identity checks establish which observations the three
+encoders may receive. Agreement between streaming and batch inputs is checked
+before training. Once those inputs are stable, the encoders and output heads
+can be exercised on a small fixture and tested through checkpoint reloads.
 
-This sequence implements the retained PPE architecture. It does not replace
-it with P6 or require an additional network to produce confidence.
+Behavioral training then uses only eligible tasks and compares the resulting
+network with the controls under a frozen evaluation protocol. Calibration
+and external reliability estimates are fitted on reserved data and frozen
+with that network version. PPE-Policy has a separate evaluation in the
+selected simulators, with its own comparators and visibility checks.
 
-## 12. Sources and publication scope
+These dependencies implement the retained PPE architecture without replacing
+it with P6 or adding a mandatory confidence network.
+
+## Sources and publication scope
 
 This specification consolidates the PPE v0.1 design of October 29, 2026,
 the technical review of November 4 and the subsequent design clarifications.
