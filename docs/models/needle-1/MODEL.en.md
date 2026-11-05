@@ -2,7 +2,7 @@
 
 *Architecture, mathematics and implementation plan*
 
-**Document version:** 0.1, English edition, November 5, 2026.
+**Document version:** 0.2, English edition, November 5, 2026.
 
 **Builds on:** [Needle-0: Poker Player Encoder](../needle-0/MODEL.en.md).
 
@@ -10,6 +10,12 @@
 implemented or trained. The Needle-0 components, benchmark platform and
 native decision engine referred to below exist in the private research
 workspace.
+
+**Revision 0.2:** a design review corrected range inference, the training of
+hand-conditional behavior, the change signal, the memory decay, uncertainty
+estimates, the promotion criteria and the safety claims, and added sections on
+permitted use and production operations. See
+[Changes in version 0.2](#changes-in-version-02).
 
 ### Abstract
 
@@ -53,8 +59,11 @@ Needle-1 must:
 - absorb changes in the fields of the future corpus without a redesign.
 
 Needle-1 does not automate any action in a game client. It produces
-predictions, analysis and read-only advice, and plays only in the local
-**Poker Arena** simulator. Corpus construction is a separate project. This
+predictions and analysis, and plays only in the local **Poker Arena**
+simulator. Its permitted uses are defined in
+[Permitted use and compliance](#permitted-use-and-compliance): offline
+analysis, replay and simulation are in scope. Assistance during real-money
+play is not. Corpus construction is a separate project. This
 document defines only the input contract that the corpus must be able to
 feed. Variants other than No-Limit Hold'em are representable in the contract,
 but no model is specified for them.
@@ -69,7 +78,7 @@ optional.
 | Requirement | Target | Rationale |
 | --- | --- | --- |
 | Prediction latency, one query on CPU | at most 10 ms at p95 | Needle-0 measured 5.3 ms on its full path |
-| Full decision latency, advice mode | at most 1,500 ms at p95 on a 4-core CPU | Below the existing 2,000 ms publication boundary of the application |
+| Full decision latency, analysis mode | at most 1,500 ms at p95 on a 4-core CPU | Interactive review of recorded or simulated decisions |
 | Full decision latency, simulator | at most 3,000 ms at p95 | Campaign throughput |
 | Determinism | Same input and seed give the same output | Replay and audit |
 | Traceability | Every output is bound to code, weights, field registry and profile hashes | Extends the Needle-0 code receipt |
@@ -148,7 +157,7 @@ flowchart TD
     D1 --> D2[Response tables]
     D2 --> D3[Native search]
     D3 --> D4[Reliability-weighted exploitation]
-    D4 --> OUT[Decision contract: advice, simulator, replay]
+    D4 --> OUT[Decision contract: analysis, simulator, replay]
 ```
 
 | Module | Responsibility |
@@ -177,7 +186,7 @@ Design principles:
 | Training | Corpus, read-only | Weights, receipts, metrics | Offline, GPU allowed |
 | Simulator | Referee view restricted to the actor | Simulated action | Deterministic, paired seeds |
 | Replay | Recorded hands | Predictions and hypothetical decisions | No future information |
-| Advice | Validated protocol stream | Displayed advice | Read-only, latency budget |
+| Analysis | Recorded hands, study positions or simulated games | Displayed analysis | Read-only, latency budget, never during real-money play |
 
 ## Data contract
 
@@ -280,7 +289,7 @@ example, the stack-to-pot ratio is unknown when the pot is unknown.
 | Tier | Role | When absent |
 | --- | --- | --- |
 | **T0 Fundamental** | Needed to represent the decision at all | The observation is refused |
-| **T1 Economy** | Needed for expected values and strongly useful for prediction | Prediction runs in a degraded mode. The decision engine gives no numerical advice |
+| **T1 Economy** | Needed for expected values and strongly useful for prediction | Prediction runs in a degraded mode. The decision engine gives no numerical evaluation |
 | **T2 Complementary** | Enriches predictions and decisions | No blocking effect. The model sees the absent state |
 
 ### T0: fundamental fields
@@ -529,27 +538,63 @@ selection set. The final choice is made on the new corpus.
 
 | Head | Output | Active when |
 | --- | --- | --- |
-| Action | fold, check, call, bet, raise | Always |
-| Sizing | Pot-fraction classes: up to 0.33, 0.33 to 0.66, 0.66 to 1.0, 1.0 to 1.5, above 1.5, all-in | Qualified T1 amounts |
-| Hand-conditional action | Action distribution given a hand class | Cards shown at showdown |
+| Hand-conditional action | Action distribution given a hand class | Always, trained on every decision (see below) |
+| Hand-conditional sizing | Pot-fraction classes given a hand class: up to 0.33, 0.33 to 0.66, 0.66 to 1.0, 1.0 to 1.5, above 1.5, all-in | Qualified T1 amounts |
+| Direct action | fold, check, call, bet, raise, without a hand | Cold start and diagnostics only |
 | Decision time | Distribution over log-time bins | Qualified timer in the source |
-| Future style statistics, training only | VPIP, PFR, aggression, continuation-bet frequency over the player's next hands | Training |
+| Future style statistics, training only | VPIP, PFR, aggression, continuation-bet frequency over the player's next hands within the same split period | Training |
 
 **Hand classes.** Before the flop, the 169 canonical starting-hand classes.
 After the flop, made-hand category combined with draws, or the equity decile
 against a uniform range computed by the native equity engine.
 
-**Showdown selection bias.** Hands shown at showdown are not a random sample:
-they are biased toward hands that continue to the end. The hand-conditional
-loss is therefore weighted by inverse propensity:
+### Learning hand-conditional behavior
+
+Training the hand-conditional head only on hands shown at showdown would be
+biased in a way that no reweighting on the decision context can fix. A hand
+reaches showdown only if the player did not fold along the way, and that
+selection depends on the hidden cards themselves. Shown hands therefore
+under-represent folds and weak holdings. The learned benchmark opponent of
+Needle-0 failed its qualification for this reason: its shown-hand sample
+contained no folds.
+
+Needle-1 instead trains on **every** decision and treats unseen cards as a
+latent variable. Let $b_i$ be the observer's belief over the actor's private
+combinations at decision $i$, computed from earlier actions of the same hand
+by the range filter described in the decision engine. For a decision whose
+cards were not revealed, the loss is the negative marginal log-likelihood
 
 ```math
-w_i = \min\left( \frac{1}{\hat\pi(\mathrm{showdown} \mid x_i)}, \, w_{\max} \right),
+\ell_i = - \log \sum_{c} b_i(c) \, q\left( a_i, s_i \mid x_i, \mathrm{class}(c), \mathcal{M}_j^i \right).
 ```
 
-where $\hat\pi$ is a separately trained estimate of the probability of
-reaching showdown from the decision context. The head is also evaluated
-separately on preflop all-in hands, which are much less selected.
+When the cards $c_i$ were revealed later in the hand, the decision also
+contributes the direct term $-\log q(a_i, s_i \mid x_i, \mathrm{class}(c_i), \mathcal{M}_j^i)$.
+Training alternates between computing beliefs with the current model
+(without gradients) and updating the model, which is an
+expectation-maximization scheme
+([Dempster, Laird and Rubin, 1977](https://doi.org/10.1111/j.2517-6161.1977.tb01600.x))
+applied to hidden cards, in the spirit of
+[Southey et al. (2005)](https://arxiv.org/abs/1207.1411). It is initialized on
+revealed hands and preflop all-in hands, and native equity features make the
+classes comparable across boards.
+
+### One coherent action distribution
+
+The decision engine and every published prediction use a single action
+distribution: the hand-conditional head averaged over the current belief,
+
+```math
+q(a_t \mid x_t, \mathcal{M}_j^t) = \sum_{c} b_t(c) \, q\left( a_t \mid x_t, \mathrm{class}(c), \mathcal{M}_j^t \right).
+```
+
+The direct action head is kept only for cold-start diagnostics and as a
+baseline. A consistency term keeps it aligned with the marginal, so the two
+can never tell different stories about the same decision:
+
+```math
+\mathcal{L}_{\mathrm{consistency}} = \mathrm{KL}\left( q_{\mathrm{direct}} \,\Vert\, q \right).
+```
 
 ### Fusion
 
@@ -566,10 +611,15 @@ used a single layer.
 
 ### Uncertainty
 
-- **Ensemble.** Five heads share the trunk and are initialized
-  independently. Their mean is the prediction and their dispersion is the
+- **Ensemble.** Three independently trained models, with different seeds
+  and data order. Their mean is the prediction and their dispersion is the
   epistemic uncertainty
-  ([Lakshminarayanan et al., 2017](https://arxiv.org/abs/1612.01474)).
+  ([Lakshminarayanan et al., 2017](https://arxiv.org/abs/1612.01474)). Heads
+  sharing one trunk would be cheaper but underestimate uncertainty, so they
+  are only an option if a validation shows comparable dispersion quality.
+- **Calibrated dispersion.** The raw dispersion is mapped to an observed
+  error rate on the calibration set before it is used as a reliability input,
+  so that a small dispersion actually means a reliable prediction.
 - **Calibration.** Temperature scaling by support bin, with logits
   $\ell_a$ and temperature $T_b$ for bin $b$:
 
@@ -600,21 +650,31 @@ accumulator $A_j$, a weight $W_j$, a hand count $n_j$, decision counts by
 decision family and street, the last-seen time, the hash of the checkpoint
 that produced the hand vectors, and an identity confidence.
 
-When a new hand vector $h$ arrives after $\delta$ intervening hands:
+The profile is updated once per observed hand of the player. With a decay per
+player hand $\gamma$ and an optional decay per elapsed time $\gamma_{\mathrm{time}}$
+over the time $\Delta t$ since the player's previous hand:
 
 ```math
-A_j \leftarrow \gamma^{\delta} A_j + h,
+\lambda = \gamma \, \gamma_{\mathrm{time}}^{\Delta t},
 \qquad
-W_j \leftarrow \gamma^{\delta} W_j + 1,
+A_j \leftarrow \lambda A_j + h,
+\qquad
+W_j \leftarrow \lambda W_j + 1,
 \qquad
 L_j = \frac{A_j}{W_j},
 \qquad
 \gamma = 2^{-1/\tau}.
 ```
 
-The half-life $\tau$, for example 2,000 hands, is a validated
-hyperparameter. An infinite half-life gives a simple mean. The update costs
-the same for the first and the ten-thousandth hand.
+The half-life $\tau$, for example 2,000 of the player's hands, and the time
+half-life are validated hyperparameters. Setting both decays to one gives a
+simple mean. The update costs the same for the first and the ten-thousandth
+hand.
+
+The same state also keeps a **fast mean** $F_j$ of the same hand vectors,
+updated identically with a short half-life, for example 20 hands. Because
+$L_j$ and $F_j$ live in the same vector space, their difference is a
+meaningful change signal.
 
 Hand vectors depend on the weights. A new checkpoint must recompute stored
 profiles from stored hands, which is why the checkpoint hash is part of the
@@ -635,32 +695,50 @@ state.
 
 ### Shrinkage and reliability
 
-A learned population profile $\mu_f$ for each format family is the prior.
-The long-term profile moves away from it as evidence accumulates:
+A learned population profile is the prior. It depends on the format family
+$f$ and on the source and stake level $s$, with hierarchical back-off to the
+format family when a source or stake level has too little data:
 
 ```math
-\hat L_j = \mu_f + w(n_j)\,\left( L_j - \mu_f \right),
+\mu_{f,s} = \mu_f + w(n_{f,s})\,\left( \bar\mu_{f,s} - \mu_f \right).
+```
+
+The population observed by the collection is not necessarily the population
+of the service or stake level being analyzed, so a single global prior would
+be biased. The drift of each population profile is monitored (see Production
+operations).
+
+The long-term profile moves away from its prior as evidence accumulates:
+
+```math
+\hat L_j = \mu_{f,s} + w(n_j)\,\left( L_j - \mu_{f,s} \right),
 \qquad
 w(n) = \frac{n}{n + \kappa},
 \qquad
-\kappa > 0 \ \text{learned}.
+\kappa \gt 0 \ \text{learned}.
 ```
 
 This is the principle of hierarchical Bayesian opponent models
 ([Southey et al., 2005](https://arxiv.org/abs/1207.1411)) and of the P6
-player effect with a Gaussian prior in the private workspace.
+player effect with a Gaussian prior in the private workspace. A separate
+shrinkage weight is learned for each decision family, using
+$n_j^{\mathrm{dec}}$, because rare situations such as river raises need more
+evidence than frequent ones.
 
-The change signal and reliability vector are
+The change signal compares the fast and slow means of the same hand vectors.
+The short-term Transformer output $S_j$ remains a separate input. It is not
+subtracted from $\hat L_j$ because the two vectors do not live in the same
+space.
 
 ```math
-\Delta_j = S_j - \hat L_j,
+\Delta_j = F_j - \hat L_j,
 \qquad
 r_j = \left[ \log(1+n_j), \ \log(1+n_j^{\mathrm{dec}}), \ \log(1+K_j), \ c_j^{\mathrm{id}}, \ \lVert \Delta_j \rVert, \ u_j \right],
 ```
 
 where $n_j^{\mathrm{dec}}$ counts decisions of the current decision family,
 $K_j$ is the number of recent hands actually encoded, $c_j^{\mathrm{id}}$ is
-the identity confidence and $u_j$ is the ensemble dispersion.
+the identity confidence and $u_j$ is the calibrated ensemble dispersion.
 
 A large $\lVert \Delta_j \rVert$ indicates that recent behavior departs from
 the player's usual style. An online change-point probability
@@ -692,9 +770,20 @@ players ([van den Oord et al., 2018](https://arxiv.org/abs/1807.03748)):
 {\sum_{m=1}^{B} \exp\left( \mathrm{sim}(L_j^{(1)}, L_m^{(2)}) / \eta \right)} .
 ```
 
+Two slices of the same player often share a table, a session and a stake
+level. Without precautions, the profile could learn that context instead of a
+style. The two positive slices are therefore taken from **different
+sessions**, and negatives are drawn preferentially from other players seen
+at the same table, session or stake level. The table, session and stake
+context of each slice is also given to a small adversarial classifier whose
+success is reported. A profile that predicts the context much better than the
+style is rejected.
+
 **Future style statistics.** The profile also predicts the player's style
 statistics over later hands, which gives an interpretable anchor and a
-quality check.
+quality check. These targets are computed only from hands inside the same
+split period as the example, with the same embargo as the splits. A target
+must never use hands from a later validation or test period.
 
 ## Decision engine
 
@@ -712,9 +801,13 @@ flowchart LR
 ### Range inference
 
 For each active opponent, a belief $b_t$ over the 1,326 private-card
-combinations is filtered by known cards. It starts from a prior that depends
-on position, format, preflop action and the shrunk profile, and is updated
-after each observed action $a_\tau$ with size $s_\tau$:
+combinations is filtered by known cards. It starts from the **deal
+distribution**: uniform over the combinations that are not blocked by known
+cards. Position, format, profile and every action, including preflop
+actions, enter only through the likelihood. A prior that already depended on
+the preflop action would count that action twice and make ranges too narrow.
+The belief is updated after each observed action $a_\tau$ with size
+$s_\tau$:
 
 ```math
 b_\tau(c) \propto b_{\tau-1}(c) \, q\left( a_\tau, s_\tau \mid x_\tau, \mathrm{class}(c), \mathcal{M}_j^\tau \right),
@@ -731,8 +824,12 @@ where $U$ is the uniform distribution over the remaining combinations. The
 likelihood comes from the hand-conditional head. The native engine already
 accepts weighted ranges of up to 1,326 combinations per opponent. If T1 is
 missing, the likelihood uses the action alone. If the hand-conditional head
-fails its validation, the engine falls back to position priors and declares
-that mode.
+fails its validation, the engine falls back to a population hand-conditional
+model without the individual profile, and declares that mode.
+
+The same filter supplies the beliefs used to train the hand-conditional head.
+Beliefs computed during training never use cards revealed later in the hand
+for decisions that precede the reveal.
 
 ### Response tables
 
@@ -767,13 +864,19 @@ separated. Needle-1 adds:
    combined by a reliability-weighted mean or by their minimum in a robust
    mode.
 4. side pots with unequal eligibility.
-5. a configurable utility and rake.
+5. a configurable utility and a rake model: rate, cap and the no-flop,
+   no-drop rule when the source declares it.
+6. a model of the hero's own later decisions. The current search plays the
+   hero's future actions with a simple card-strength score, which biases
+   every expected value. Needle-1 replaces it with the population
+   hand-conditional model applied to the hero's own cards, and may re-run a
+   shallow search at the next street. An ablation compares both.
 
 ### Reliability-weighted exploitation
 
 Two evaluations are computed for each candidate action $a$:
 
-- $\mathrm{EV}_0(a)$, under the population profile $\mu_f$ only. This
+- $\mathrm{EV}_0(a)$, under the population profile $\mu_{f,s}$ only. This
   reference plays the role of the current native baseline.
 - $\mathrm{EV}_{\mathrm{exp}}(a)$, under the individual profile.
 
@@ -786,12 +889,14 @@ They are combined with an exploitation weight $\rho_j$:
 ```
 
 The weight grows with the evidence and falls with ensemble dispersion and
-low identity confidence. This follows data-biased responses
+low identity confidence. It is inspired by data-biased responses
 ([Johanson and Bowling, 2009](https://proceedings.mlr.press/v5/johanson09a.html))
 and safe opponent exploitation
 ([Ganzfried and Sandholm, 2015](https://dl.acm.org/doi/10.1145/2716322)).
+Interpolating expected values of a single decision is an approximation of
+those methods, not an implementation of them.
 
-**Safety rule.** With $a_0$ the best action under the population profile, an
+**Guardrail.** With $a_0$ the best action under the population profile, an
 exploitative action $a^{\ast}$ is kept only if
 
 ```math
@@ -800,9 +905,15 @@ exploitative action $a^{\ast}$ is kept only if
 
 for a declared tolerance $\delta$ in big blinds or prize equity.
 
-**Abstention.** When the intervals of the best actions overlap, advice mode
-publishes the reference action with a `not_separated` status, as the existing
-decision service does. The simulator may use a declared argmax mode for
+This rule limits the loss **relative to the population model**. It is not a
+game-theoretic safety guarantee: the population model is not an equilibrium,
+so a strong adaptive opponent may still exploit Needle-1. Actual
+vulnerability is measured separately by local best response (criterion S4)
+and must be reported with every release.
+
+**Abstention.** When the intervals of the best actions overlap, analysis
+outputs publish the reference action with a `not_separated` status, as the
+existing decision service does. The simulator may use a declared argmax mode for
 evaluation.
 
 ### Utility by format
@@ -896,7 +1007,7 @@ All contracts are JSON or an equivalent binary encoding. Each carries a
 | `needle1-prediction-v1` | Model to engine | Distributions, dispersion, support, calibration, mode |
 | `needle1-belief-v1` | Range inference to search | Weighted ranges, smoothing, number of updates, status |
 | `needle1-response-table-v1` | Response tables to search | Per-node response policies |
-| `needle1-decision-v1` | Engine to advice, simulator or replay | Action, amount, expected values, intervals, weight, status, receipts |
+| `needle1-decision-v1` | Engine to analysis, simulator or replay | Action, amount, expected values, intervals, weight, status, receipts |
 
 Observation example:
 
@@ -971,6 +1082,11 @@ flowchart TD
 - Contract tests check that no field follows the decision boundary, that
   amounts are consistent (contributions sum to the pot when all are observed)
   and that positions are valid for the number of players.
+- **Source profiles are validated against the data.** A field declared
+  `provided` whose missing rate exceeds a declared threshold, or a field
+  declared `not_provided` that appears, raises an alert and blocks the
+  profile version. Otherwise the model would confuse "never supplied" with
+  "missing", which is exactly the distinction it relies on.
 
 ### Splits
 
@@ -985,7 +1101,7 @@ flowchart TD
 | Phase | Objectives | Data |
 | --- | --- | --- |
 | Pretraining | Next action of **every** player, not only one focal player, and masked event modeling | All hands, including incomplete ones |
-| Multi-task | Action, sizing, hand-conditional action, timing, future style, identity contrast | Examples qualified for each head |
+| Multi-task | Hand-conditional action and sizing with latent hands, direct action with consistency, timing, future style, identity contrast | Examples qualified for each head |
 | Calibration | Temperatures by support bin | Dedicated calibration set |
 
 Each head is computed only on examples whose target is observed. With head
@@ -994,8 +1110,13 @@ weights $\lambda_h$ and target masks $m_{i,h}$:
 ```math
 \mathcal{L} = \sum_{h} \lambda_h \,
 \frac{\sum_{i} m_{i,h} \, \ell_h(i)}{\max\left(1, \sum_{i} m_{i,h}\right)}
-+ \lambda_{\mathrm{id}} \, \mathcal{L}_{\mathrm{id}} .
++ \lambda_{\mathrm{id}} \, \mathcal{L}_{\mathrm{id}}
++ \lambda_{\mathrm{c}} \, \mathcal{L}_{\mathrm{consistency}} .
 ```
+
+For the hand-conditional heads, $\ell_h(i)$ is the latent-hand loss defined in
+the behavioral model, so every decision has an observed target even when the
+cards stay hidden.
 
 ### Sampling
 
@@ -1053,12 +1174,13 @@ baseline and Needle-0 remain references throughout.
 | W4 Needle-0.5 | Needle-0 architecture retrained on the new corpus | W2 | Reference measurement published |
 | W5 Behavioral model | Typed tokenizer, field states, FiLM, heads, ensemble, calibration | W2, W3 | Criteria P1 to P4 |
 | W6 Player memory | Long-term and short-term memory, reliability, persistence, recomputation after checkpoint change | W5 | Criterion P5 |
-| W7 Beliefs and tables | Range inference and response tables | W5 | Range consistency, smoothing and sizing tests |
-| W8 Native engine extension | Ranges, per-node tables, continuations, multiple pots, ICM, rake | W7 | Native tests, exact cases against an independent referee, ICM on known cases |
-| W9 Exploitation and decision | Reliability weighting, safety rule, decision contract, simulator integration | W8 | Criteria S1 to S5 |
-| W10 Needle-1 campaign | Panels and ablations below | W9 | Validation report |
-| W11 Read-only advice | Integration into the analysis service | W10 | Latency budget met. `automation` false |
-| W12 Optional | Learned policy | W10 | Separate decision |
+| W7 Beliefs and tables | Range inference from the deal distribution, latent-hand training loop and response tables | W5 | No double counting test. Range consistency, smoothing and sizing tests |
+| W8 Native engine extension | Ranges, per-node tables, continuations, hero continuation model, multiple pots, ICM, rake | W7 | Native tests, exact cases against an independent referee, ICM on known cases |
+| W9 Exploitation and decision | Reliability weighting, guardrail, decision contract, simulator integration | W8 | Criteria S1 to S5 |
+| W10 Needle-1 campaign | Panels and ablations below | W9 | Validation report and primary endpoint |
+| W11 Production operations | Model registry, shadow evaluation, monitoring, rollback, profile storage and retention | W6, W9 | Section Production operations |
+| W12 Analysis integration | Read-only integration for recorded hands, study positions and simulation | W10, W11, D6 | Latency budget met. `automation` false. Compliance gate passed |
+| W13 Optional | Learned policy | W10 | Separate decision |
 
 The critical path is W1, W3, W5, W7, W8 and W9. W4 runs in parallel with W5,
 so that the gain from data can be separated from the gain from architecture.
@@ -1083,7 +1205,7 @@ W8 is the most expensive package.
 | P3 | Calibration error below a declared threshold in every support bin and format with sufficient support |
 | P4 | With T2 removed, no worse than a model trained without T2. Adding each T2 group does not degrade predictions |
 | P5 | Memory minus no historical information at all, counters included, significantly positive in bins with at least 50 hands. Shuffling hand order degrades predictions, otherwise the short-term branch is simplified |
-| P6 | Hand-conditional head calibrated on preflop all-in hands |
+| P6 | Hand-conditional head calibrated on preflop all-in hands. The marginal action distribution matches the direct head within a declared divergence |
 | P7 | Raise recall reported, with a declared improvement target over the 16 % of Needle-0 |
 
 ### Strategic criteria
@@ -1115,11 +1237,14 @@ but should leave the main panel because they are easy to exploit.
 
 ### Mandatory ablations
 
-On the same seeds: without long-term memory. Without short-term memory.
-Without any historical information, counters included. With shuffled hand
-order. With uniform ranges. With root marginals instead of per-node tables.
-Without reliability weighting. With chip utility instead of ICM. And without
-T2 fields.
+Ablations use the same seeds to isolate the contributions of memory,
+range inference and search. Long-term and short-term memory are removed
+separately, then all historical information is removed, including counters.
+Shuffling hand order tests the value of temporal structure. Uniform ranges
+and root marginals replace inferred ranges and per-node tables in separate
+comparisons. Further comparisons remove reliability weighting or T2 fields,
+replace ICM with chip utility, and replace the hero model with heuristic
+continuation.
 
 ### Statistical method
 
@@ -1131,20 +1256,79 @@ T2 fields.
   separate pilot.
 - Block-bootstrap intervals over seeds and simultaneous bands within each
   panel.
+- Multiple comparisons across panels and criteria are controlled with the
+  Holm procedure (Holm, 1979).
+  Exploratory panels are reported as such and cannot support promotion.
 - No strategy adjustment based on an evaluated campaign. Any improvement is
   re-evaluated on new seeds.
 
+### Primary endpoint
+
+Needle-0 was promoted to the simulator without beating the native baseline.
+Needle-1 must not repeat that. Before the campaign, a single primary endpoint
+is registered: the paired gain of Needle-1 over the native baseline, in big
+blinds per 100 hands for cash and in return on investment for Sit & Go, on
+three fixed panels (heads-up 100 big blinds, six-player 100 big blinds and
+six-player Sit & Go) against the strong and adaptive population. The endpoint
+is met when the Holm-adjusted gain is significantly positive on at least two
+of the three panels and not significantly negative on the third.
+
 ### Promotion of Needle-1.0
 
-Criteria P1 to P5 and S1 to S4 are met, S5 is met for Sit & Go, the latency
-budget is met, and all contract tests pass.
+Promotion requires the primary endpoint and criteria P1 to P6 and S1 to S4.
+Sit & Go also requires S5. The latency budget and production requirements
+must be satisfied, with D6 passed for every deployed use and all contract
+tests passing.
+
+## Permitted use and compliance
+
+| Use | Status |
+| --- | --- |
+| Offline analysis of recorded hands | In scope |
+| Replay and study of hypothetical positions | In scope |
+| Simulated matches in Poker Arena | In scope |
+| Research on prediction and decision quality | In scope |
+| Any assistance displayed or computed while the user plays a real-money game | Out of scope |
+| Automated actions in a game client | Never |
+
+Most online poker operators prohibit real-time assistance software during
+play, whether or not it automates actions. Needle-1 is therefore not designed
+or validated for that use, and no work package delivers it. Any deployment
+requires the compliance review D6, which checks the applicable operator terms
+and law for that use.
+
+Player profiles built from observed screen names can be personal data.
+Before any profile store is used beyond research fixtures, D6 also defines
+the legal basis, a retention period, deletion on request, access control and
+the separation between public documents and private data. Public documents
+never contain individual profiles, names or hand records.
+
+## Production operations
+
+A model that passes its validation still needs operational safeguards.
+
+| Area | Requirement |
+| --- | --- |
+| Model registry | Every checkpoint is registered with its code, registry, corpus and calibration hashes, its validation report and its status (candidate, shadow, active, retired) |
+| Shadow evaluation | A new checkpoint first runs in parallel on replay and simulator traffic, without being used, until its metrics match the validation report |
+| Monitoring | Calibration error by support bin and format, field coverage by source, population-profile drift, abstention rate, latency percentiles and error rates, with declared alert thresholds |
+| Rollback | The previous active checkpoint and its player profiles stay available. Switching back is one registry change |
+| Profile recomputation | A new checkpoint requires re-encoding stored hands. The cost is measured before promotion, and profiles are rebuilt in the background while the previous checkpoint stays active |
+| Profile storage | Hand vectors, counts and the minimal hand records needed for recomputation. Size per player and total growth are monitored |
+| Retention | Profiles and stored hands follow the retention period and deletion rules of D6 |
+| Incidents | A failed contract test, a blocked source profile or a calibration alert switches the affected outputs to the population model or to `refused` |
 
 ## Risks and open decisions
 
 | Risk | Effect | Mitigation |
 | --- | --- | --- |
 | Identities not linked across sessions | Long-term profile has little value | Session memory fallback. Identity rule decision |
-| Few hands shown at showdown | Weak hand-conditional head and ranges | Propensity weighting, preflop priors, native equity |
+| Few hands shown at showdown | Weak hand-conditional head and ranges | Latent-hand training on every decision, native equity features, all-in calibration |
+| Shown-hand selection | Folds and weak holdings under-represented | Marginal likelihood over hidden cards instead of shown-hand training only |
+| Context shortcut in profiles | Profiles encode table or session instead of style | Cross-session positives, context-matched negatives, adversarial context check |
+| Population prior mismatch | Biased cold-start predictions on a new service or stake level | Priors by source and stake level, drift monitoring |
+| Use during real-money play | Breach of operator terms | Permitted-use policy and compliance gate D6 |
+| Personal data in profiles | Privacy obligations | Retention limits, deletion, access control, legal review |
 | Unstable corpus fields | Frequent retraining | Versioned registry, hashed fallback, coverage report |
 | Better prediction without better decisions, as with Needle-0 | Effort without value | Beliefs and tables first. Range ablation |
 | Simulator population too easy | Differences hidden | Strong and adaptive opponents |
@@ -1157,9 +1341,10 @@ Decisions needed before implementation:
 | --- | --- |
 | D1 | Cross-session identity linking rule and confidence threshold |
 | D2 | Target services and their source profiles: timers, shown cards and tournament structure |
-| D3 | Latency budget for advice mode, 1,500 ms proposed |
-| D4 | Non-inferiority margins and simulator campaign sizes |
+| D3 | Latency budget for analysis mode, 1,500 ms proposed |
+| D4 | Non-inferiority margins, primary endpoint panels and simulator campaign sizes |
 | D5 | Reference branch for the Needle-0 consolidation |
+| D6 | Compliance review of every deployed use and of player-profile retention |
 
 ## Appendix A: position classes by number of seated players
 
@@ -1205,6 +1390,27 @@ empty.
 | `cash.kind` | T2 | categorical | before notification | cash |
 | `hand.started_at` | T2 | timestamp | hand start | source dependent |
 
+## Changes in version 0.2
+
+A design review of version 0.1 found the following problems, corrected here.
+
+| Area | Version 0.1 | Version 0.2 |
+| --- | --- | --- |
+| Range prior | Depended on the preflop action, which the likelihood then counted again | Starts from the deal distribution. Every action enters only through the likelihood |
+| Hand-conditional training | Shown hands reweighted by a showdown propensity computed from the context, which cannot correct a selection that depends on the hidden cards | Marginal likelihood over hidden cards on every decision, with shown hands as direct supervision |
+| Action distributions | Direct and hand-conditional heads could disagree | The marginal of the hand-conditional head is the published distribution. The direct head is aligned by a consistency term |
+| Change signal | Subtracted vectors from two different spaces | Fast and slow means of the same hand vectors |
+| Memory decay | Counted intervening hands, always one | Decay per player hand, optionally per elapsed time |
+| Population prior | One per format family | By format family, source and stake level, with back-off and drift monitoring |
+| Ensemble | Heads sharing a trunk | Independently trained models. Calibrated dispersion |
+| Profile objective | Slices could share table and session context | Cross-session positives, context-matched negatives, adversarial context check |
+| Future style targets | Could use hands after the split boundary | Restricted to the example's split period |
+| Hero continuation | Left to a card-strength heuristic | Population hand-conditional model for the hero, with an ablation |
+| Exploitation | Described as safe | Described as a guardrail relative to the population model. Vulnerability measured |
+| Source profiles | Assumed correct | Validated against observed missing rates |
+| Promotion | No requirement to beat the native baseline | Registered primary endpoint with Holm correction |
+| Use and operations | Read-only advice package, no operations section | Permitted-use policy, compliance gate D6, production operations |
+
 ## References
 
 - Southey et al., [Bayes' Bluff: Opponent Modelling in Poker](https://arxiv.org/abs/1207.1411), UAI 2005.
@@ -1227,6 +1433,8 @@ empty.
 - Lisý and Bowling, [Equilibrium Approximation Quality of Current No-Limit Poker Bots](https://arxiv.org/abs/1612.07547), 2017.
 - Burch et al., [AIVAT: A New Variance Reduction Technique for Agent Evaluation in Imperfect Information Games](https://arxiv.org/abs/1612.06915), AAAI 2018.
 - Vaswani et al., [Attention Is All You Need](https://arxiv.org/abs/1706.03762), NeurIPS 2017.
+- Dempster, Laird and Rubin, [Maximum Likelihood from Incomplete Data via the EM Algorithm](https://doi.org/10.1111/j.2517-6161.1977.tb01600.x), Journal of the Royal Statistical Society B, 1977.
+- Holm, A Simple Sequentially Rejective Multiple Test Procedure, Scandinavian Journal of Statistics, 1979.
 
 ## Sources and publication scope
 
