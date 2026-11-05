@@ -84,7 +84,7 @@ PPE to a table adviser is a separate integration task.
 The behavioral task is to approximate
 
 ```math
-q_{\theta,\phi}(a_t,s_t\mid x_t^v,H_j^{<t,v}).
+q_{\theta,\phi}(a_t,s_t\mid x_t^v,H_j^{\lt t,v}).
 ```
 
 The model first predicts the action, then the amount conditional on an
@@ -92,8 +92,8 @@ aggressive action.
 
 ```math
 \begin{aligned}
-z_j^t &= f_\theta(H_j^{<t,v}), \\
-q_{\theta,\phi}(a_t,s_t\mid x_t^v,H_j^{<t,v})
+z_j^t &= f_\theta(H_j^{\lt t,v}), \\
+q_{\theta,\phi}(a_t,s_t\mid x_t^v,H_j^{\lt t,v})
 &=q_\phi(a_t\mid x_t^v,z_j^t)\,
 q_\phi(s_t\mid a_t,x_t^v,z_j^t).
 \end{aligned}
