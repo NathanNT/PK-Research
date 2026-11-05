@@ -85,10 +85,12 @@ not automate betting actions.
 | **PK Client** | Headless protocol implementation with transport, logical connections, authentication, subscriptions and state synchronization. | The qualified protocol path, API and web controls exist. Coverage depends on the profile and scenario validated. |
 | **Reversel Protocol** | Protocol research supporting the application and client. Earlier work identified more than 150 protocol-related functions. | Partial. Findings retain their build, evidence and validation scope. |
 | **Needle-0** | Player-history representation learning through PPE-Predict, followed by a policy trained in simulation through PPE-Policy. | Architecture defined. Causal data preparation and lightweight baseline experiments exist. The PPE neural network has not been trained. |
+| **Needle-1** | Modular successor of Needle-0: field registry with optional data, long-term and short-term player memory, range inference and reliability-weighted decisions for every format. | Architecture specification. Not implemented or trained. |
 
 PK HUD is the application. PK Client provides the independent client path.
 Reversel Protocol documents the underlying mechanisms. Needle-0 builds on the
-resulting observations to study player behavior and adaptation.
+resulting observations to study player behavior and adaptation. Needle-1
+specifies how those predictions are turned into decisions.
 
 ## Needle-0: Poker Player Encoder
 
@@ -123,6 +125,27 @@ context needs. It is not a vector of 36 scalar model inputs.
 The [Needle-0 technical document](docs/models/needle-0/MODEL.en.md) explains
 how the architecture works, develops its equations and connects the training
 procedure, external reliability layer and implementation in a single account.
+
+## Needle-1: modular player modeling and decisions
+
+Needle-1 keeps the causal, history-based approach of Needle-0 and addresses
+what limited its effect on decisions. Opponent ranges are inferred from
+observed actions instead of being assumed uniform. Predictions reach every
+node of the native search, and exploitation is weighted by how reliable each
+player profile is.
+
+A versioned field registry separates fundamental, economic and
+complementary information. The model therefore runs on services that expose
+different fields, such as decision timers, without treating a missing value
+as zero. A persistent long-term profile uses the complete history, a
+short-term branch follows recent behavior, and both are shrunk toward a
+population profile when evidence is limited. The architecture covers cash
+games, multi-table tournaments, Sit & Go and heads-up play, from two to nine
+players, with prize-equity utility for tournaments.
+
+The [Needle-1 architecture specification](docs/models/needle-1/MODEL.en.md)
+describes the data contracts, model, player memory, decision engine,
+training pipeline, implementation plan and Poker Arena validation criteria.
 
 ## Communication and data pipeline
 
@@ -193,7 +216,7 @@ source manifests, finite fixtures and regression tests support reproducibility.
 ## Publication scope
 
 This repository contains the public overview, existing illustrations and the
-Needle-0 design document. Implementation code, individual game records,
+Needle-0 and Needle-1 design documents. Implementation code, individual game records,
 private configuration, credentials and detailed experimental evidence remain
 in the private workspace.
 
