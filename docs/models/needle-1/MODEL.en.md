@@ -2,7 +2,7 @@
 
 *Architecture, mathematics and implementation plan*
 
-**Document version:** 0.2, English edition, November 5, 2026.
+**Document version:** 0.3, English edition, November 5, 2026.
 
 **Builds on:** [Needle-0: Poker Player Encoder](../needle-0/MODEL.en.md).
 
@@ -16,6 +16,12 @@ hand-conditional behavior, the change signal, the memory decay, uncertainty
 estimates, the promotion criteria and the safety claims, and added sections on
 permitted use and production operations. See
 [Changes in version 0.2](#changes-in-version-02).
+
+**Revision 0.3:** a review of the collection database schema confirmed its
+compatibility and added corpus requirements C1 to C8, cross-source ordering
+of player history, censored decision times, a cap on any single player's
+weight and the cost of hand-class training. See
+[Changes in version 0.3](#changes-in-version-03).
 
 ### Abstract
 
@@ -205,8 +211,17 @@ Each hand is an ordered sequence of events. Every event must carry:
 | `fields` | Values, each as a field value with a state |
 | `provenance` | Source, adapter version and hash of the original |
 
-Ordering always uses `source_position`, as in Needle-0. Clock values can be
-features, for example hand age or a timer, but never define the order.
+Within one source, ordering always uses `source_position`, as in Needle-0.
+Clock values can be features, for example hand age or a timer, but never
+reorder events of the same source.
+
+A player's history spans several tables and sources, whose positions are not
+comparable. Across sources, hands are ordered by their observed end time,
+with a declared clock uncertainty $\epsilon_{\mathrm{clock}}$ for each pair of
+sources. The player memory used for a decision at time $t$ only contains hands
+from other sources that ended before $t - \epsilon_{\mathrm{clock}}$. Hands
+whose relative order is ambiguous within that margin are kept in end-time
+order and flagged, and the short-term branch receives that flag.
 
 ### Source profiles
 
@@ -351,6 +366,7 @@ Every value passed to the model is a pair of a value and a state.
 | --- | --- | --- |
 | `observed` | Present and qualified | Value |
 | `derived` | Computed from observed values by a versioned formula | Value |
+| `censored` | Only a bound is known, such as a decision time when the timer expired or the player disconnected | Lower bound |
 | `unqualified` | Present, but its unit, timing or attribution is not guaranteed | Kept for audit, not given to the model |
 | `withheld` | Exists but becomes available after the decision boundary | Not given to the model |
 | `missing` | Expected by the source profile but absent here | None |
@@ -373,11 +389,13 @@ For field $f$ with state $\sigma_f$ and value $v_f$, the tokenizer produces
 ```math
 e_f = E^{\mathrm{state}}(\sigma_f) + \mathbb{1}\left[\sigma_f \in \mathcal{O}\right] \, E^{\mathrm{value}}_f(v_f),
 \qquad
-\mathcal{O} = \lbrace \mathrm{observed}, \mathrm{derived} \rbrace .
+\mathcal{O} = \lbrace \mathrm{observed}, \mathrm{derived}, \mathrm{censored} \rbrace .
 ```
 
 The state embedding is always present, and the value embedding only when the
-value is usable. This is an explicit missing-indicator representation, which
+value is usable. For a `censored` value, the value embedding encodes the
+bound and the state embedding tells the model that the true value is at least
+that large. This is an explicit missing-indicator representation, which
 is better behaved than silent imputation
 ([Van Ness et al., 2023](https://arxiv.org/abs/2211.09259)).
 
@@ -547,6 +565,22 @@ selection set. The final choice is made on the new corpus.
 **Hand classes.** Before the flop, the 169 canonical starting-hand classes.
 After the flop, made-hand category combined with draws, or the equity decile
 against a uniform range computed by the native equity engine.
+
+### Decision-time head with censoring
+
+The timing head predicts a distribution over log-time bins $k$, with
+probabilities $p_k$. A duration observed in bin $k_i$ contributes
+$-\log p_{k_i}$. A censored duration only says that the decision took at
+least as long as its bound, which falls in bin $k_i$, so it contributes the
+survival term
+
+```math
+\ell_i^{\mathrm{time}} = - \log \sum_{k \ge k_i} p_k .
+```
+
+Treating a timeout as an observed duration would teach the model that long
+decisions stop at the time limit. The source's timing quality label is kept as
+a field state, and low-quality timings are excluded from the timing target.
 
 ### Learning hand-conditional behavior
 
@@ -748,8 +782,9 @@ $r_j$ if measurements show a benefit.
 ### Identity
 
 - Long-term memory is updated only for identities whose linking confidence
-  exceeds a declared threshold. The Needle-0 corpus had only source-local
-  identities, so the cross-session linking rule is an open decision.
+  exceeds a declared threshold. The collection database records network
+  players under keys scoped to one collection epoch, so the long-term profile
+  depends on the identity resolution of requirement C1 and on decision D1.
 - A low-confidence identity receives session memory only: a short-term
   representation without a long-term profile.
 - Identity confidence is part of $r_j$.
@@ -1088,6 +1123,28 @@ flowchart TD
   profile version. Otherwise the model would confuse "never supplied" with
   "missing", which is exactly the distinction it relies on.
 
+### Collection database requirements
+
+The future corpus is built from the shared collection database of the
+private workspace. A review of its schema found it compatible with this
+specification: it already records event order, source occurrences, proof
+levels, decoder versions, hand revisions and completeness, seats and stacks,
+revealed cards, pots, eligibility and awards, legal options, decision timing
+with censoring and quality, per-hand metric contributions, and typed facts
+for the decision economy, blinds, tournament phase and timers. The corpus
+adapter must nevertheless satisfy the following requirements.
+
+| Id | Requirement | Reason |
+| --- | --- | --- |
+| C1 | **Identity resolution.** Player keys recorded from the network are scoped to one collection epoch and are deliberately not global accounts. The adapter links those scoped keys into linked identities, for example by exact screen name on the same site through the alias records, and gives every link a confidence below one. | Without it, the long-term profile only accumulates within one epoch |
+| C2 | **Hand deduplication.** A physical hand observed by several collectors can appear under several table and hand keys. Hands are deduplicated by site and full wire hand identifier before training and before profile updates. | Duplicates would double-count evidence in memory and training |
+| C3 | **Revision pinning.** Hands can be re-decoded into new revisions. Every corpus snapshot records the hand, revision and decoder version it uses, and a changed revision triggers recomputation of the affected profiles. | Reproducibility and profile consistency |
+| C4 | **Storage decoder.** Event payloads are stored compressed behind a virtual column that only the project's storage layer can decode. The adapter reads them through that layer and exports an explicit training format. | A plain SQLite or dataframe reader cannot read the payloads |
+| C5 | **Frozen snapshot.** Training and evaluation read a consistent copy of the database, never the shared database that collectors are writing. | A long read on the live database holds its write-ahead log and slows collection |
+| C6 | **Proof-level mapping.** A versioned table maps every proof level and decoder version to a field state of this specification. | The model relies on the state, not on source-specific labels |
+| C7 | **Tournament subtype.** Tournament records often carry a tournament identifier without a qualified subtype. "Tournament, subtype unknown" is a valid format value, and Sit & Go or MTT treatment applies only when the subtype is qualified. | Avoids inventing a format |
+| C8 | **As-of statistics only.** Cumulative player and session totals have no date and would leak the future. Only per-hand contributions, aggregated as of each example, may become features. | Temporal leakage |
+
 ### Splits
 
 - **Temporal:** training precedes validation, which precedes test, with an
@@ -1123,6 +1180,11 @@ cards stay hidden.
 - Stratification by format, number of players and depth.
 - Random history length.
 - Modality dropout for T2 and, less often, T1 groups.
+- **Capped weight per player.** The local player's own hands always include
+  their private cards, so they are an abundant source of hand-conditional
+  supervision for a single style. Each player's share of the hand-conditional
+  loss is capped, for example at 5 % of a training epoch, and the local
+  player is reported as a separate evaluation slice.
 
 ### Infrastructure
 
@@ -1132,6 +1194,14 @@ computed on a bounded sample of past hands, for example 256. In production it
 uses the full history. A weighted mean remains consistent between both when
 the half-life is shorter than the training window, which a dedicated test
 must verify.
+
+The latent-hand loss evaluates the hand-conditional head once per hand class
+rather than once per private combination: 169 classes before the flop and a
+few dozen after it, with belief mass aggregated by class. Even so, it
+multiplies the cost of the behavioral forward pass by that number of classes.
+The compute budget is measured on a pilot before the full training run, and
+classes with negligible belief mass may be pruned with the pruned mass
+reported.
 
 ### Mandatory baselines
 
@@ -1169,7 +1239,7 @@ baseline and Needle-0 remain references throughout.
 | --- | --- | --- | --- |
 | W0 Consolidation | Gather the Needle-0 code and reports on one reference branch; reproducible PyTorch environment; rerun Needle-0 tests | | Needle-0 tests pass; the frozen checkpoint reloads |
 | W1 Registry and contracts | Registry schema, field states, source profiles, contracts, contract tests | W0 | Schema validation; availability tests |
-| W2 Corpus adapter | Adapter for the future corpus and coverage report | W1, corpus | Coverage published; no leakage |
+| W2 Corpus adapter | Adapter for the future corpus, coverage report and requirements C1 to C8 | W1, corpus, D1 | Coverage published; no leakage; C1 to C8 tested |
 | W3 State builder | Positions for two to nine players, heads-up rules, derived economy, side pots, format context | W1 | Tests on cash, Sit & Go, MTT and heads-up cases for two to nine players |
 | W4 Needle-0.5 | Needle-0 architecture retrained on the new corpus | W2 | Reference measurement published |
 | W5 Behavioral model | Typed tokenizer, field states, FiLM, heads, ensemble, calibration | W2, W3 | Criteria P1 to P4 |
@@ -1320,7 +1390,9 @@ A model that passes its validation still needs operational safeguards.
 
 | Risk | Effect | Mitigation |
 | --- | --- | --- |
-| Identities not linked across sessions | Long-term profile has little value | Session memory fallback; identity rule decision |
+| Identities not linked across sessions | Long-term profile has little value | Identity resolution C1, session memory fallback, decision D1 |
+| Duplicate hands across collectors | Evidence counted twice | Deduplication C2 |
+| Censored or low-quality timings | Biased decision-time estimates | Censored state and survival loss |
 | Few hands shown at showdown | Weak hand-conditional head and ranges | Latent-hand training on every decision, native equity features, all-in calibration |
 | Shown-hand selection | Folds and weak holdings under-represented | Marginal likelihood over hidden cards instead of shown-hand training only |
 | Context shortcut in profiles | Profiles encode table or session instead of style | Cross-session positives, context-matched negatives, adversarial context check |
@@ -1337,7 +1409,7 @@ Decisions needed before implementation:
 
 | Id | Question |
 | --- | --- |
-| D1 | Cross-session identity linking rule and confidence threshold |
+| D1 | Identity linking rule for epoch-scoped network players (C1) and its confidence threshold |
 | D2 | Target services and their source profiles: timers, shown cards and tournament structure |
 | D3 | Latency budget for analysis mode, 1,500 ms proposed |
 | D4 | Non-inferiority margins, primary endpoint panels and simulator campaign sizes |
@@ -1408,6 +1480,20 @@ A design review of version 0.1 found the following problems, corrected here.
 | Source profiles | Assumed correct | Validated against observed missing rates |
 | Promotion | No requirement to beat the native baseline | Registered primary endpoint with Holm correction |
 | Use and operations | Read-only advice package, no operations section | Permitted-use policy, compliance gate D6, production operations |
+
+## Changes in version 0.3
+
+A review of the collection database schema found it compatible with the
+specification. Most remaining issues belong to corpus construction; four
+concern the model or its training.
+
+| Area | Change |
+| --- | --- |
+| Corpus | Requirements C1 to C8: identity resolution, hand deduplication, revision pinning, storage decoder, frozen snapshot, proof-level mapping, tournament subtype and as-of statistics |
+| Model | Cross-source ordering of player history with a clock-uncertainty margin |
+| Model | `censored` field state and a survival loss for decision times |
+| Training | Capped weight of any single player, with the local player as a separate slice |
+| Training | Hand-class evaluation and a measured compute budget for the latent-hand loss |
 
 ## References
 
