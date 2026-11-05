@@ -70,8 +70,8 @@ PPE to a table adviser is a separate integration task.
 | $t$ | The information boundary for the target decision |
 | $v$ | The observer's permitted viewpoint |
 | $x_t^v$ | The current observation available from that viewpoint |
-| $H_j^{<t,v}$ | The focal player's history available strictly before the target |
-| $H_{j,k}^{<t,v}$ | The permitted fragment of past hand $k$ |
+| $H_j^{\lt t,v}$ | The focal player's history available strictly before the target |
+| $H_{j,k}^{\lt t,v}$ | The permitted fragment of past hand $k$ |
 | $C_t^v$ | The observed prefix of the current hand |
 | $u_{j,k}$ | The representation of a past hand |
 | $z_j^t$ | The player's behavioral representation |
@@ -83,21 +83,21 @@ PPE to a table adviser is a separate integration task.
 
 The behavioral task is to approximate
 
-$$
+```math
 q_{\theta,\phi}(a_t,s_t\mid x_t^v,H_j^{<t,v}).
-$$
+```
 
 The model first predicts the action, then the amount conditional on an
 aggressive action.
 
-$$
+```math
 \begin{aligned}
 z_j^t &= f_\theta(H_j^{<t,v}), \\
 q_{\theta,\phi}(a_t,s_t\mid x_t^v,H_j^{<t,v})
 &=q_\phi(a_t\mid x_t^v,z_j^t)\,
 q_\phi(s_t\mid a_t,x_t^v,z_j^t).
 \end{aligned}
-$$
+```
 
 The second distribution is used for bets and raises. Network weights are
 shared across players. Identifiers are used to assemble episodes and data
@@ -140,9 +140,9 @@ repository contains the design and project overview, not these source files.
 
 Every feature must satisfy
 
-$$
-\operatorname{available\_at}(\text{feature})\prec t.
-$$
+```math
+\mathrm{available\_at}(\text{feature})\prec t.
+```
 
 The ordering comes from the source, message position and command ordinal.
 A reception time or SQL insertion time is not treated as a shared clock
@@ -174,13 +174,13 @@ inputs.
 A missing value is different from a real zero. For a numerical value $r$
 with availability mask $b$, the tensorizer uses
 
-$$
+```math
 \widetilde r=
 \begin{cases}
 T_{\mathrm{train}}(r),& b=1,\\
 0,& b=0.
 \end{cases}
-$$
+```
 
 The transformation $T_{\mathrm{train}}$, its parameters and the mask are
 versioned. Normalization is fitted on training data and then frozen. The
@@ -192,11 +192,11 @@ Past amounts are normal model inputs. For an aggressive target, the labels
 can distinguish the amount added, the total amount reached and a ratio to
 a verified reference pot.
 
-$$
+```math
 \Delta_t=\text{amount added},\qquad
 R_t=\text{total amount reached},\qquad
 r_t=\frac{\Delta_t}{P_t}.
-$$
+```
 
 $P_t$ must be defined and verified before the action. These quantities are
 not interchangeable. A received amount whose role is unknown is not silently
@@ -218,7 +218,7 @@ extension to 256 hands. Longer sequences require an explicit, versioned
 choice such as a larger budget, fragmentation or a recorded exclusion.
 Dropped events must not be counted as encoded support.
 
-The few-shot curve uses $K\in\{0,10,30,100,300,1000\}$ earlier decisions
+The few-shot curve uses $K\in\lbrace 0,10,30,100,300,1000\rbrace$ earlier decisions
 by the focal player. The number of hands and events actually encoded is
 reported separately. The public prefix of the current hand remains available
 at every value of $K$.
@@ -251,17 +251,17 @@ not change the player representation.
 
 For event $e_{k,\ell}$ in hand $k$, the input vector has width $d$.
 
-$$
+```math
 v_{k,\ell}=
-W_{\mathrm{in}}\operatorname{concat}
+W_{\mathrm{in}}\mathrm{concat}
 \left(
-\operatorname{Emb}(c_{k,\ell}),
+\mathrm{Emb}(c_{k,\ell}),
 \widetilde n_{k,\ell},
 b_{k,\ell},
 q_{k,\ell}
 \right)
 +p_{k,\ell}.
-$$
+```
 
 $c$ holds categorical values, $\widetilde n$ holds normalized numerical
 values, $b$ contains availability masks, and $q$ describes quality and
@@ -272,10 +272,10 @@ through roles and relative positions, not a username embedding.
 
 The hand encoder is shared across hands and players.
 
-$$
+```math
 u_{j,k}=E_{\mathrm{hand},\theta}(v_{k,1},\ldots,v_{k,L_k})
 \in\mathbb R^d.
-$$
+```
 
 One implementation convention is to add a learned `[HAND]` summary token
 and read its final state. Padding events are masked. Attention within an
@@ -284,10 +284,10 @@ after the target boundary cannot be used to complete that fragment.
 
 The attention operation is
 
-$$
-\operatorname{Attention}(Q,K,V,M)=
-\operatorname{softmax}\!\left(\frac{QK^\top}{\sqrt{d_h}}+M\right)V.
-$$
+```math
+\mathrm{Attention}(Q,K,V,M)=
+\mathrm{softmax}\!\left(\frac{QK^\top}{\sqrt{d_h}}+M\right)V.
+```
 
 $M$ is zero for permitted connections and $-\infty$ for forbidden ones.
 The attention blocks follow the [Transformer architecture](https://arxiv.org/abs/1706.03762).
@@ -297,13 +297,13 @@ The attention blocks follow the [Transformer architecture](https://arxiv.org/abs
 Each hand summary receives ordering information and an age feature when
 that age is known.
 
-$$
+```math
 \begin{aligned}
 \bar u_{j,k}&=u_{j,k}+p_k^{\mathrm{hand}}+\rho(\Delta t_k,b_k^{\mathrm{time}}),\\
 z_j^t&=W_z\,E_{\mathrm{history},\theta}
 (\bar u_{j,1},\ldots,\bar u_{j,H})+b_z.
 \end{aligned}
-$$
+```
 
 The time mask records an unknown age rather than inventing a duration.
 A `[PLAYER]` token provides the history summary, which is projected to
@@ -318,9 +318,9 @@ attached to the representation.
 
 The current branch produces
 
-$$
+```math
 c_t=E_{\mathrm{current},\theta}(C_t^v,x_t^v)\in\mathbb R^d.
-$$
+```
 
 It respects the causal order of the current prefix. With causal attention,
 a `[STATE]` summary token is placed after the prefix so it can read all
@@ -335,10 +335,10 @@ this branch with their availability masks.
 The prediction head combines the current state, player representation and
 coverage metadata $\kappa_t$.
 
-$$
-h_t=\operatorname{MLP}_\phi
-\left(\operatorname{concat}(c_t,z_j^t,\kappa_t)\right).
-$$
+```math
+h_t=\mathrm{MLP}_\phi
+\left(\mathrm{concat}(c_t,z_j^t,\kappa_t)\right).
+```
 
 Nonlinear fusion allows the context and player representation to interact.
 $\kappa_t$ describes how much history is available, its known age and missing
@@ -366,18 +366,18 @@ the checkpoint configuration as well as its dimensions.
 
 The ordered action vocabulary is
 
-$$
+```math
 \mathcal A=(\mathrm{fold},\mathrm{check},\mathrm{call},\mathrm{bet},\mathrm{raise}).
-$$
+```
 
 The action head returns logits $\ell_t=W_a h_t+b_a$. When the legal-action
 mask has been fully verified, probabilities are
 
-$$
+```math
 q_\phi(a\mid x_t^v,z_j^t,m_t)=
 \frac{\mathbf1_{\{m_t(a)=1\}}\exp(\ell_{t,a})}
 {\sum_{a'\in\mathcal A}\mathbf1_{\{m_t(a')=1\}}\exp(\ell_{t,a'})}.
-$$
+```
 
 An unknown mask is not silently replaced with "every action is legal".
 The `action_reduced` task predicts an observed action category without
@@ -387,12 +387,12 @@ or a mask inconsistent with its label produces an explicit diagnostic.
 
 ### Sizing probabilities
 
-For $a\in\{\mathrm{bet},\mathrm{raise}\}$, the sizing head returns
+For $a\in\lbrace \mathrm{bet},\mathrm{raise}\rbrace$, the sizing head returns
 
-$$
+```math
 q_\phi(s\mid a,x_t^v,z_j^t)
-=\operatorname{softmax}(W_{s,a}h_t+b_{s,a})_s.
-$$
+=\mathrm{softmax}(W_{s,a}h_t+b_{s,a})_s.
+```
 
 This can be implemented as two conditional outputs. The shared representation
 does not receive the future action to predict that action. During sizing
@@ -410,21 +410,21 @@ an exact observed amount. Unknown all-in status remains unknown.
 
 For a fully eligible example, the prediction loss is
 
-$$
+```math
 \mathcal L_i=-\log q_\phi(a_i\mid x_i,z_i)
 -\lambda_s\mathbf1_{\{a_i\in\{\mathrm{bet},\mathrm{raise}\}\}}
 \log q_\phi(s_i\mid a_i,x_i,z_i).
-$$
+```
 
 With action and sizing eligibility masks $b_i^a$ and $b_i^s$, and example
 weights $w_i$, the batch loss becomes
 
-$$
+```math
 \mathcal L_{\mathrm{pred}}=
 \frac{\sum_iw_i\left(b_i^a\mathcal L_i^a+
 \lambda_s b_i^s\mathcal L_i^s\right)}
 {\sum_iw_i b_i^a}.
-$$
+```
 
 The sizing mask requires an aggressive action and a verified quantity
 compatible with the selected codebook. Missing labels are not zero-sized
@@ -507,18 +507,18 @@ alone cannot establish whether the model understands that situation.
 A fixed grouping rule $g(\eta)$ uses characteristics available in example
 $\eta$. For a group $G$ and loss $\ell$, empirical risk is
 
-$$
+```math
 \widehat R_G=
 \frac{\sum_{i:g(\eta_i)=G}w_i\,
 \ell(q_i,y_i)}{\sum_{i:g(\eta_i)=G}w_i}.
-$$
+```
 
 Log-loss measures probabilistic performance. The Brier score is also reported.
 
-$$
+```math
 \ell_{\mathrm{Brier}}(q_i,y_i)
 =\sum_{a\in\mathcal A}\left(q_i(a)-\mathbf1_{\{y_i=a\}}\right)^2.
-$$
+```
 
 The report pairs risk with sample size, the number of dependence groups,
 an interval when one can be estimated, and the domain covered. Intervals
@@ -536,9 +536,9 @@ Optional external calibration adjusts probabilities without retraining the
 encoder. One approach fits a positive temperature $T$ on reserved calibration
 data.
 
-$$
-q_T(a)=\operatorname{softmax}\!\left(\frac{\ell_a}{T}\right).
-$$
+```math
+q_T(a)=\mathrm{softmax}\!\left(\frac{\ell_a}{T}\right).
+```
 
 It retains the same verified legal mask. This procedure is separate from
 the table of risk by comparable situation. It is a post-processing method
@@ -558,10 +558,10 @@ The policy receives its information set $I_t$, including its own private
 cards, public facts and permitted history. It also receives opponent
 representations.
 
-$$
+```math
 \pi_\psi(a_t\mid I_t,z_1^t,\ldots,z_m^t),
 \qquad V_\omega(I_t,z_1^t,\ldots,z_m^t).
-$$
+```
 
 Heads-up play needs one opponent representation. A later multiway extension
 will associate each representation with its position and stack without
@@ -582,13 +582,13 @@ The selected algorithm is PPO with actor and critic heads. Let the policy
 ratio be $\varrho_t=\pi_\psi(a_t\mid I_t,z)/\pi_{\mathrm{old}}(a_t\mid I_t,z)$
 and let $\widehat A_t$ estimate advantage. The actor loss is
 
-$$
+```math
 \mathcal L_{\mathrm{actor}}=
 -\mathbb E_t\left[
 \min\left(\varrho_t\widehat A_t,
-\operatorname{clip}(\varrho_t,1-\varepsilon,1+\varepsilon)
+\mathrm{clip}(\varrho_t,1-\varepsilon,1+\varepsilon)
 \widehat A_t\right)\right].
-$$
+```
 
 Training adds a value loss and an entropy term. The objective follows
 [Schulman et al. on PPO](https://arxiv.org/abs/1707.06347). Later experiments
