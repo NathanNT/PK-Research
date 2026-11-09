@@ -16,8 +16,9 @@ simulated continuation.
 | Component | Purpose | Status |
 | --- | --- | --- |
 | **PK HUD** | Table observation, player statistics, hand history, replay and decision analysis. | Implemented |
-| **PK Client** | Protocol connection and table-state reconstruction without the desktop interface. | Implemented, with partial protocol coverage |
-| **Reversel Protocol** | Protocol analysis, decoded messages and the evidence behind their fields. | Ongoing research |
+| **PK Client** | Protocol connection and table-state reconstruction without the desktop interface. | Complete for the project's needs |
+| **Reversal Protocol** | Protocol mapping needed for table observation and data collection. | Complete for the project's needs |
+| **DB** | Research database, with the indexer/dispatcher as one of its components. | In development |
 | **[Needle 0](docs/models/needle-0/MODEL.en.md)** | First supervised model of player behavior. | Implemented supervised reference, evaluated offline |
 | **[Needle 1](docs/models/needle-1/MODEL.en.md)** | Design for player memory, inferred ranges and optional input fields. | Earlier architecture, with components carried into Needle 2 |
 | **[Needle 2](docs/models/needle-2/MODEL.en.md)** | Individual behavior prediction and native decision search. | Implemented, strategic evaluation in progress |
@@ -45,8 +46,9 @@ and design work, with no demonstrated playing strength.
 
 ## From messages to hands
 
-The protocol work follows data through transport, decoding, message dispatch
-and table state. Actions, cards and amounts must be attached to the right
+Reversal Protocol and PK Client cover the protocol and client behavior needed
+for the project's use. The mapping follows data through transport, decoding,
+message dispatch and table state. Actions, cards and amounts must be attached to the right
 table, hand and player before they can be used by Needle. Missing information
 stays unknown, and recordings can be replayed to check the reconstruction.
 
