@@ -19,6 +19,8 @@ simulated continuation.
 | **PK Client** | Protocol connection and table-state reconstruction without the desktop interface. | Complete for the project's needs |
 | **Reversal Protocol** | Protocol mapping needed for table observation and data collection. | Complete for the project's needs |
 | **DB** | Research database, with the indexer/dispatcher as one of its components. | In development |
+| **Poker Bench** | Prediction and decision benchmarks, LBR/ABR attacks and replayable evidence. | Implemented |
+| **Poker Arena** | Controlled poker matches, replay and chance-adjusted scoring. | Implemented, real-bot qualification still pending |
 | **[Needle 0](docs/models/needle-0/MODEL.en.md)** | First supervised model of player behavior. | Implemented supervised reference, evaluated offline |
 | **[Needle 1](docs/models/needle-1/MODEL.en.md)** | Design for player memory, inferred ranges and optional input fields. | Earlier architecture, with components carried into Needle 2 |
 | **[Needle 2](docs/models/needle-2/MODEL.en.md)** | Individual behavior prediction and native decision search. | Implemented, strategic evaluation in progress |
