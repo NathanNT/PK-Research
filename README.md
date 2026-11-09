@@ -17,6 +17,30 @@ This public repository presents the project, selected illustrations and its
 research design. Implementation sources and detailed evidence remain in the
 private research workspace.
 
+## Needle research status
+
+As of 9 November 2026, Needle 2 is an implemented supervised player model
+with native decision search. Its [technical account](docs/models/needle-2/MODEL.en.md)
+describes exact-card prediction, individual memory, causal ranges and the
+training pipeline. It also reports the limitations of B1, a one-member,
+one-epoch trial on an older data contract. That trial's measured regressions
+do not qualify the strength of a complete current ensemble.
+
+[Needle 3](docs/models/needle-3/ARCHITECTURE.en.md) is a proposed combination
+of a CFR reference and individualized exploitation. Its first scope is a
+HU100 laboratory demonstrator. Small feasibility experiments and reusable
+interfaces exist, but the integrated playing system has not been built.
+
+[The Needle 4 work report](docs/models/needle-4/STATUS.en.md) describes the
+research completed, C2's results and counterexamples, the common CFR
+distribution bridge and Bot Battle. No Needle 4 architecture has been
+selected and validated.
+
+The documents use **confirmed** for code or measurements within their
+stated scope, **probable** for justified proposals and estimates, and
+**unverified** for outstanding claims. The older Needle 0 and Needle 1
+sections below preserve the history of the designs.
+
 ## Interface preview
 
 These images show the existing interface running against an isolated
@@ -79,20 +103,26 @@ not automate betting actions.
 
 ## Project ecosystem
 
-| Project | Purpose | Current status |
-| --- | --- | --- |
-| **PK HUD** | Table observation, player metrics, durable history, replay, decision analysis and LLM advice. | Implemented. Data coverage and end-to-end validation remain specific to each source and task. |
-| **PK Client** | Headless protocol implementation with transport, logical connections, authentication, subscriptions and state synchronization. | The qualified protocol path, API and web controls exist. Coverage depends on the profile and scenario validated. |
-| **Reversel Protocol** | Protocol research supporting the application and client. Earlier work identified more than 150 protocol-related functions. | Partial. Findings retain their build, evidence and validation scope. |
-| **Needle-0** | Player-history representation learning through PPE-Predict, followed by a policy trained in simulation through PPE-Policy. | Architecture defined. Causal data preparation and lightweight baseline experiments exist. The PPE neural network has not been trained. |
-| **Needle-1** | Modular successor of Needle-0: field registry with optional data, long-term and short-term player memory, range inference and reliability-weighted decisions for every format. | Architecture specification. Not implemented or trained. |
+PK HUD is the observation application. It provides player metrics, durable
+history, replay and decision analysis. PK Client supplies the independent
+headless protocol path, including qualified transport, subscriptions and
+state synchronization. Reversel Protocol records the underlying research.
+Coverage and validation remain specific to a build, source and task.
 
-PK HUD is the application. PK Client provides the independent client path.
-Reversel Protocol documents the underlying mechanisms. Needle-0 builds on the
-resulting observations to study player behavior and adaptation. Needle-1
-specifies how those predictions are turned into decisions.
+Needle uses the resulting observations to study behavior and adaptation.
+Needle 0 became a supervised reference evaluated offline. Its proposed
+PPE-Policy extension remains separate from that implementation. Needle 1
+specified a more modular architecture, with components subsequently reused
+and corrected in Needle 2.
+
+Needle 2 implements individualized prediction and native search.
+Needle 3 proposes adding an equilibrium-oriented reference, while Needle 4
+remains an exploratory research stage. Implementation, design and strategic
+qualification are reported separately.
 
 ## Needle-0: Poker Player Encoder
+
+*Historical design overview. See the current status above for later implementation and measurements.*
 
 Needle-0 learns from structured histories rather than assigning a fixed label
 to a player. A hand encoder summarizes events within each past hand. A history
@@ -102,18 +132,20 @@ behaves differently across stack depths, positions and betting contexts.
 
 **PPE-Predict** uses the current observation and player representation to
 estimate action probabilities and conditional bet-size distributions.
-**PPE-Policy** builds on that representation to train a policy and value
-function in simulation. Its evaluation starts with small games before
-moving to restricted NLHE subgames.
+**PPE-Policy** proposed building on that representation to train a policy and
+value function in simulation, starting with small games before restricted
+NLHE subgames. This remains distinct from Needle 2's supervised predictor
+and heuristic search continuation.
 
 Observed amounts are model inputs. The next action and its amount are targets.
 Reliability is measured outside the neural network using held-out performance
 on comparable cases. This keeps the first version free of a mandatory neural
 confidence head.
 
-The private review verified an export of **9,144 reduced-action examples from
-10 sources** and the artifacts of **nine lightweight baseline models**.
-These are data and baseline results, not results from a trained PPE Transformer.
+An earlier private review verified an export of **9,144 reduced-action examples
+from 10 sources** and artifacts from **nine lightweight baseline models**.
+These historical figures describe that early baseline review, not the current
+corpus or subsequent neural model measurements.
 Legal-action masks, sizing labels and independent evaluation groups still have
 limited coverage. Two additional cohorts can support temporal pilot studies
 of already observed players. They do not establish generalization to unseen
@@ -127,6 +159,8 @@ how the architecture works, develops its equations and connects the training
 procedure, external reliability layer and implementation in a single account.
 
 ## Needle-1: modular player modeling and decisions
+
+*Historical architecture specification. Implemented components and corrections carried forward into Needle 2 are documented separately.*
 
 Needle-1 keeps the causal, history-based approach of Needle-0 and addresses
 what limited its effect on decisions. Opponent ranges are inferred from
@@ -215,8 +249,11 @@ source manifests, finite fixtures and regression tests support reproducibility.
 
 ## Publication scope
 
-This repository contains the public overview, existing illustrations and the
-Needle-0 and Needle-1 design documents. Implementation code, individual game records,
+This repository contains the public overview, existing illustrations, the
+historical Needle-0/1 design documents, Needle 2 documentation, the proposed
+Needle 3 architecture and a dated Needle 4 work report. Aggregate measurements
+retain their scope and version. detailed evidence remains private.
+Implementation code, individual game records,
 private configuration, credentials and detailed experimental evidence remain
 in the private workspace.
 
