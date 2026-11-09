@@ -1,7 +1,7 @@
 # Needle 4: research status and the next empirical step
 
-This report records the state of work on 9 November 2026 at 18:57
-Europe/Paris. Needle 4 has no selected, validated architecture and no
+The research snapshot dates from 9 November 2026 at 18:57 Europe/Paris.
+The engineering sections also include the later Bot Battle provider delivery. Needle 4 has no selected, validated architecture and no
 measured playing strength. The work has produced useful constraints,
 counterexamples and evaluation components, rather than a demonstrated
 successor to Needle 3.
@@ -118,22 +118,42 @@ No real provider, image or private table was executed.
 Actual artifact identity, provider parity, cold and warm cost, and strategic
 strength remain **unverified**.
 
-## Bot Battle is ready for qualification work
+## Bot Battle: provider integration delivered
 
-**Confirmed.** Internal commit `2261c8dde` delivers the BB0/BB1 foundation.
-Metadata admission leads to a frozen paired plan, small house-only sessions,
-Evidence and replay, chance-adjusted scoring and grouped analysis.
-An owned-process supervisor enforces the supported local execution boundary.
+**Confirmed.** Internal commit `2261c8dde` delivered the BB0/BB1 foundation:
+metadata admission, a frozen paired plan, small house-only sessions, Evidence
+and replay, chance-adjusted scoring and grouped analysis.
+
+The later delivery, `c18541b69`, connects provider declarations to the existing
+Arena adapters and adds preflights and supervision for the processes it starts.
+Preparation reads explicitly supplied metadata. Execution requires a separate
+grant tied to the resolved provider and operation, so preparing a provider
+does not launch it.
+
+The supervision code implements resource accounting, timeouts, shutdown and
+reconciliation after interruption. Windows Jobs cover the harness and its
+native descendants. The Linux controller and cgroup helper provide the
+container accounting path, but that path has not been validated on a real
+runtime.
+
+**Confirmed as reported validation.** The delivery report records 93 passing
+tests: 32 BB0/BB1, 32 provider and supervision tests, and 29 CFR tests.
+These use mocks, synthetic metadata and small house processes. Across
+16 attempts, including corrections and repeated runs, validation consumed
+158.30 seconds of CPU. The largest Windows Job private-commit peak was
+141.97 MiB. These are test costs, not measurements of actual bot execution
+or total physical memory.
+
+**Confirmed.** No real provider, daemon or container was executed during this
+delivery. **Unverified.** Actual artifacts, runtime permissions, resource
+accounting, loading, protocol behavior and shutdown still need validation. The delivered code is not yet a qualified
+runtime for real bots. The report does not claim an independent review.
 
 The proposed P0 contains six sessions and 24 table hands for diagnostics.
 Conditional P1 adds 20 sessions and 240 hands across rotations.
 The combined 264 hands are development work, not a strength ranking.
 The cumulative eight-CPU-hour limit is an abort ceiling rather than a
-measured runtime.
-
-The author reported 68 distinct passing tests, comprising 32 BB0/BB1,
-29 CFR and seven transport tests. These included house-only mini-sessions,
-not matches against released opponents.
+measured runtime. Neither real pilot has run.
 
 The admitted reference setup uses blinds 50/100, stacks reset to 10,000,
 one-chip units and zero ante or rake. HU and six-player results remain
@@ -141,22 +161,18 @@ separate. Conditional menus and adapters outside training scope stay
 visible. The available variance reduction corrects chance events, not all
 action terms of full AIVAT.
 
-**Confirmed.** The delivered version refuses real WSL, Docker and cgroup
-execution because a Windows client's Job Object does not account for the
-container's full workload. Real manifests and a qualified accounting and
-shutdown path are still needed. Neither the real P0 nor P1 has run.
-
 ## Where the work goes next
 
-**Confirmed as work in progress.** At this snapshot, a follow-up task is
-building actual provider resolution, owned-container accounting, timeouts,
-cleanup and cumulative budget enforcement. Its tests use mocks and house
-processes. It is not permission to run a provider or campaign.
+**Probable.** Review the delivered code, then qualify explicitly selected
+artifacts and a runtime route before attempting a bounded provider preflight.
+The technical preflight covers startup, hello, reset and shutdown with zero
+hands. A CFR distribution check is a separate operation. Neither operation
+launches P0 or grants permission for a campaign.
 
-**Probable.** That code should be reviewed before selecting real manifests
-and checking identity and domain receipts. A separately qualified, bounded
-provider smoke would then determine whether P0 can be launched.
-Measured runtime and variance would size a later independent strength study.
+A successful technical preflight would still leave decision coverage,
+multi-bot capacity and strategic strength to be measured. Those checks must
+precede the real P0. Its observed runtime and variance would then size a
+later independent strength study.
 
 A VPS/API option is designed but not deployed. The referee and Needle would
 remain on a trusted machine, sending only legal synthetic observations to
